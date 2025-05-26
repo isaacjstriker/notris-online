@@ -1,6 +1,6 @@
-# Devware
+# Dev Ware
 
-Devware is a CLI-based game suite and leaderboard system, built as my capstone project for Boot.dev.
+Dev Ware is a CLI-based game suite and leaderboard system, built as my capstone project for Boot.dev. The name comes form the ecclectic 'Wario Ware' franchise, from which I took much inspiration. I even created sketch ideas of games on sticky notes, similar to the developers behind 'Wario Ware!'
 
 ## Technologies Used
 
@@ -34,4 +34,4 @@ go mod tidy
 
 ## About
 
-This project is my capstone for Boot.dev, emphasizing skills in Go and database-backed application development. I used Lua for game logic as it is the language I am most comfortable scripting games with.
+Being a capstone project, it is made to emphasize skills in Go and database-backed application development. I used Lua for game logic as it is the language I am most comfortable scripting games with.
