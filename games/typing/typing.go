@@ -5,6 +5,7 @@ import (
 	"time"
 	"bufio"
 	"fmt"
+	"math/rand"
 
 	lua "github.com/yuin/gopher-lua"
 )
@@ -36,6 +37,12 @@ func Run() {
 			words = append(words, value.String())
 		})
 	}
+
+	// Shuffle the words slice
+	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
+	rng.Shuffle(len(words), func(i, j int) {
+		words[i], words[j] = words[j], words[i]
+	})
 
 	timer := time.Now()
 
