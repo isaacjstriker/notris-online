@@ -1,12 +1,12 @@
 package typing
 
 import (
-	"os"
-	"time"
-	"bufio"
 	"fmt"
 	"math/rand"
+	"strings"
+	"time"
 
+	"github.com/eiannone/keyboard"
 	lua "github.com/yuin/gopher-lua"
 )
 
@@ -17,14 +17,13 @@ func Run() {
 	// Load Lua script
 	if err := L.DoFile("games/typing_game.lua"); err != nil {
 		fmt.Println("Lua error:", err)
+		return
 	}
-	
-	// Get words table from Lua
-	if err := L.CallByParam(lua.P{
-		Fn:      L.GetGlobal("get_words"),
-		NRet:    1,
-		Protect: true,
-	}); err != nil {
+
+	// Get random words list
+	L.Push(L.GetGlobal("get_random_words"))
+	L.Push(lua.LNumber(10)) // Change number to change amount of words cycled
+	if err := L.PCall(1, 1, nil); err != nil {
 		fmt.Println("Lua error:", err)
 		return
 	}
@@ -46,40 +45,61 @@ func Run() {
 
 	timer := time.Now()
 
+	if err := keyboard.Open(); err != nil {
+		fmt.Println("Failed to open keyboard:", err)
+		return
+	}
+	defer keyboard.Close()
+
 	// Read user input with timeout
 	for _, word := range words {
 		fmt.Printf("You have 5 seconds to type this word: %s\n", word)
 		inputCh := make(chan string)
 		go func() {
-			reader := bufio.NewReader(os.Stdin)
-			text, _ := reader.ReadString('\n')
-			inputCh <- text[:len(text)-1] // <- Remove newline
+			input := ""
+			for {
+				char, key, err := keyboard.GetKey()
+				if err != nil {
+					inputCh <- ""
+					return
+				}
+				if key == keyboard.KeyEnter {
+					inputCh <- input
+					return
+				} else if key == keyboard.KeyBackspace || key == keyboard.KeyBackspace2 {
+					if len(input) > 0 {
+						input = input[:len(input)-1]
+						fmt.Print("\b \b")
+					}
+				} else if key == 0 {
+					input += string(char)
+					fmt.Print(string(char))
+				}
+			}
 		}()
 
-		success := false
 		select {
 		case input := <-inputCh:
+			fmt.Println()
 			// Call Lua function to check the word
 			L.Push(L.GetGlobal("check_word"))
-			L.Push(lua.LString(input))
+			L.Push(lua.LString(strings.TrimSpace(input)))
 			L.Push(lua.LString(word))
 			if err := L.PCall(2, 1, nil); err != nil {
 				fmt.Println("Lua error:", err)
 				return
 			}
-			result := L.Get(-1).(lua.LBool)
+			result := L.Get(-1)
 			L.Pop(1)
-			if result {
+			if result == lua.LTrue {
 				fmt.Println("Correct!")
-				success = true
 			} else {
 				fmt.Println("Incorrect. Game over.")
+				return
 			}
 		case <-time.After(5 * time.Second):
 			fmt.Println("\nTime's up! Game over.")
-		}
-		if !success {
-			break
+			return
 		}
 	}
 	elapsed := time.Since(timer)
