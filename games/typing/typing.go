@@ -15,7 +15,7 @@ func Run() {
 	defer L.Close()
 
 	// Load Lua script
-	if err := L.DoFile("games/typing_game.lua"); err != nil {
+	if err := L.DoFile("games/typing/typing_game.lua"); err != nil {
 		fmt.Println("Lua error:", err)
 		return
 	}
