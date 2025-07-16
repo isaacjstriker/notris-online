@@ -8,16 +8,77 @@ import (
 
 	"github.com/eiannone/keyboard"
 	lua "github.com/yuin/gopher-lua"
+
+	"github.com/isaacjstriker/devware/internal/auth"
+	"github.com/isaacjstriker/devware/internal/database"
 )
 
-func Run() {
+type GameStats struct {
+	WordsTyped   int
+	CorrectWords int
+	TotalTime    float64
+	WPM          float64
+	Accuracy     float64
+	Score        int
+}
+
+func RunWithAuth(db *database.DB, authManager *auth.CLIAuth) {
+	// Check if user wants to save scores
+	saveScores := false
+	if authManager.GetSession().IsLoggedIn() {
+		saveScores = true
+		fmt.Printf("\n🎯 Starting Typing Game for %s\n", authManager.GetSession().GetUserInfo())
+	} else {
+		fmt.Println("\n🎯 Starting Typing Game (Guest Mode)")
+		fmt.Println("💡 Tip: Login to save your high scores!")
+	}
+
+	stats := playGame()
+
+	// Display results
+	displayResults(stats)
+
+	// Save score if user is authenticated
+	if saveScores && db != nil {
+		session := authManager.GetSession().GetCurrentSession()
+		if session != nil {
+			err := saveGameScore(db, session.UserID, stats)
+			if err != nil {
+				fmt.Printf("⚠️  Warning: Could not save score: %v\n", err)
+			} else {
+				fmt.Println("✅ Score saved to your profile!")
+
+				// Show personal best
+				userStats, err := db.GetUserStats(session.UserID, "typing")
+				if err == nil {
+					fmt.Printf("🏆 Your best score: %d\n", userStats.BestScore)
+					fmt.Printf("📊 Games played: %d\n", userStats.GamesPlayed)
+					fmt.Printf("📈 Average score: %.1f\n", userStats.AvgScore)
+				}
+			}
+		}
+	}
+
+	fmt.Println("\nPress Enter to continue...")
+	fmt.Scanln()
+}
+
+func RunLegacy() {
+	// Fallback for backward compatibility
+	stats := playGame()
+	displayResults(stats)
+	fmt.Println("\nPress Enter to continue...")
+	fmt.Scanln()
+}
+
+func playGame() *GameStats {
 	L := lua.NewState()
 	defer L.Close()
 
 	// Load Lua script
 	if err := L.DoFile("games/typing/typing_game.lua"); err != nil {
 		fmt.Println("Lua error:", err)
-		return
+		return &GameStats{}
 	}
 
 	// Get random words list
@@ -25,7 +86,7 @@ func Run() {
 	L.Push(lua.LNumber(10)) // Change number to change amount of words cycled
 	if err := L.PCall(1, 1, nil); err != nil {
 		fmt.Println("Lua error:", err)
-		return
+		return &GameStats{}
 	}
 	wordsTable := L.Get(-1)
 	L.Pop(1)
@@ -43,65 +104,127 @@ func Run() {
 		words[i], words[j] = words[j], words[i]
 	})
 
-	timer := time.Now()
-
 	if err := keyboard.Open(); err != nil {
 		fmt.Println("Failed to open keyboard:", err)
-		return
+		return &GameStats{}
 	}
 	defer keyboard.Close()
 
-	// Read user input with timeout
-	for _, word := range words {
-		fmt.Printf("You have 5 seconds to type this word: %s\n", word)
-		inputCh := make(chan string)
+	stats := &GameStats{}
+	timer := time.Now()
+
+	fmt.Println("\n⏰ Get ready! Type the words as they appear...")
+	fmt.Println("You have 5 seconds per word. Good luck!")
+	fmt.Println()
+
+	// Send words to channel in a goroutine
+	wordChannel := make(chan string, 1)
+	wordIndex := 0
+
+	// Start the game by sending the first word
+	if len(words) > 0 {
+		fmt.Printf("Type this word: %s\n", words[wordIndex])
 		go func() {
-			input := ""
+			wordChannel <- words[wordIndex]
+		}()
+	}
+
+	// Game loop
+gameLoop:
+	for wordIndex < len(words) {
+		select {
+		case word := <-wordChannel:
+			// Get user input
+			userInput := ""
+			fmt.Print("> ")
+
+			// Read user input character by character
 			for {
 				char, key, err := keyboard.GetKey()
 				if err != nil {
-					inputCh <- ""
-					return
+					fmt.Println("Error reading keyboard:", err)
+					break gameLoop
 				}
+
 				if key == keyboard.KeyEnter {
-					inputCh <- input
-					return
+					fmt.Println() // New line after enter
+					break
 				} else if key == keyboard.KeyBackspace || key == keyboard.KeyBackspace2 {
-					if len(input) > 0 {
-						input = input[:len(input)-1]
-						fmt.Print("\b \b")
+					if len(userInput) > 0 {
+						userInput = userInput[:len(userInput)-1]
+						fmt.Print("\b \b") // Backspace visual effect
 					}
-				} else if key == 0 {
-					input += string(char)
+				} else if char != 0 {
+					userInput += string(char)
 					fmt.Print(string(char))
 				}
 			}
-		}()
 
-		select {
-		case input := <-inputCh:
-			fmt.Println()
-			// Call Lua function to check the word
-			L.Push(L.GetGlobal("check_word"))
-			L.Push(lua.LString(strings.TrimSpace(input)))
-			L.Push(lua.LString(word))
-			if err := L.PCall(2, 1, nil); err != nil {
-				fmt.Println("Lua error:", err)
-				return
-			}
-			result := L.Get(-1)
-			L.Pop(1)
-			if result == lua.LTrue {
-				fmt.Println("Correct!")
+			stats.WordsTyped++
+
+			// Check if input matches the word
+			if strings.TrimSpace(userInput) == word {
+				fmt.Println("✅ Correct!")
+				stats.CorrectWords++
+
+				// Move to next word
+				wordIndex++
+				if wordIndex < len(words) {
+					fmt.Printf("\nType this word: %s\n", words[wordIndex])
+					go func(w string) {
+						wordChannel <- w
+					}(words[wordIndex])
+				}
 			} else {
-				fmt.Println("Incorrect. Game over.")
-				return
+				fmt.Println("❌ Incorrect. Game over.")
+				break gameLoop
 			}
+
 		case <-time.After(5 * time.Second):
-			fmt.Println("\nTime's up! Game over.")
-			return
+			fmt.Println("\n⏰ Time's up! Game over.")
+			break gameLoop
 		}
 	}
-	elapsed := time.Since(timer)
-	fmt.Printf("Closing... You took %.2f seconds\n", elapsed.Seconds())
+
+	if wordIndex >= len(words) {
+		fmt.Println("\n🎉 Congratulations! You completed all words!")
+	}
+
+	stats.TotalTime = time.Since(timer).Seconds()
+
+	// Calculate final stats
+	if stats.TotalTime > 0 {
+		stats.WPM = float64(stats.CorrectWords) / (stats.TotalTime / 60.0)
+	}
+	if stats.WordsTyped > 0 {
+		stats.Accuracy = float64(stats.CorrectWords) / float64(stats.WordsTyped) * 100
+	}
+	stats.Score = int(stats.WPM * stats.Accuracy / 100 * 10) // Custom scoring formula
+
+	return stats
+}
+
+func displayResults(stats *GameStats) {
+	fmt.Println("\n" + strings.Repeat("=", 50))
+	fmt.Println("🎯 TYPING GAME RESULTS")
+	fmt.Println(strings.Repeat("=", 50))
+	fmt.Printf("📝 Words Attempted: %d\n", stats.WordsTyped)
+	fmt.Printf("✅ Words Correct: %d\n", stats.CorrectWords)
+	fmt.Printf("⏱️  Total Time: %.2f seconds\n", stats.TotalTime)
+	fmt.Printf("⚡ Words Per Minute: %.1f WPM\n", stats.WPM)
+	fmt.Printf("🎯 Accuracy: %.1f%%\n", stats.Accuracy)
+	fmt.Printf("🏆 Final Score: %d points\n", stats.Score)
+	fmt.Println(strings.Repeat("=", 50))
+}
+
+func saveGameScore(db *database.DB, userID int, stats *GameStats) error {
+	additionalData := map[string]interface{}{
+		"wpm":           stats.WPM,
+		"accuracy":      stats.Accuracy,
+		"words_typed":   stats.WordsTyped,
+		"correct_words": stats.CorrectWords,
+		"total_time":    stats.TotalTime,
+	}
+
+	return db.SaveGameScore(userID, "typing", stats.Score, additionalData)
 }
