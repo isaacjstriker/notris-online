@@ -95,13 +95,13 @@ func (m *Menu) calculateWidth() int {
 }
 
 func (m *Menu) render() {
-	// Clear screen
-	fmt.Print("\033[H\033[2J")
+	// Use your clearScreen function instead of escape codes
+	m.clearScreen()
 
 	// Calculate width
 	m.Width = m.calculateWidth()
 
-	// ASCII Art Title (centered)
+	// ASCII Art Title
 	fmt.Println(`
     ██████╗ ███████╗██╗   ██╗██╗    ██╗ █████╗ ██████╗ ███████╗
     ██╔══██╗██╔════╝██║   ██║██║    ██║██╔══██╗██╔══██╗██╔════╝
@@ -112,72 +112,49 @@ func (m *Menu) render() {
     `)
 
 	// Calculate menu centering
-	logoWidth := 67 // Approximate width of the ASCII art
+	logoWidth := 67
 	menuIndent := (logoWidth - m.Width) / 2
 	if menuIndent < 0 {
 		menuIndent = 0
 	}
 
-	// Simple, clean border
-	borderChar := "="
-	sideChar := "|"
+	// Use your drawBorder function with proper indentation
+	fmt.Print(strings.Repeat(" ", menuIndent))
+	m.drawBorder("═", m.Width)
 
-	// Top border (centered)
-	fmt.Printf("%s+%s+\n", strings.Repeat(" ", menuIndent), strings.Repeat(borderChar, m.Width-2))
+	// Use centerText function for the title
+	centeredTitle := m.centerText(m.Title, m.Width)
+	fmt.Printf("%s║%s║\n", strings.Repeat(" ", menuIndent), centeredTitle)
 
-	// Title (centered)
-	titlePadding := (m.Width - len(m.Title) - 2) / 2
-	titleRemainder := m.Width - len(m.Title) - titlePadding - 2
-	titleLine := strings.Repeat(" ", titlePadding) + m.Title + strings.Repeat(" ", titleRemainder)
-	fmt.Printf("%s%s%s%s\n", strings.Repeat(" ", menuIndent), sideChar, titleLine, sideChar)
+	// Separator line
+	fmt.Printf("%s╠%s╣\n", strings.Repeat(" ", menuIndent), strings.Repeat("═", m.Width-2))
 
-	// Separator (centered)
-	fmt.Printf("%s+%s+\n", strings.Repeat(" ", menuIndent), strings.Repeat(borderChar, m.Width-2))
-
-	// Menu items (centered)
+	// Menu items
 	for i, item := range m.Items {
 		prefix := "  "
 		suffix := "  "
 
 		if i == m.Selected {
-			prefix = "> "
-			suffix = " <"
+			prefix = "► "
+			suffix = " ◄"
 		}
 
 		itemText := prefix + item.Label + suffix
-		padding := m.Width - len(itemText) - 2
 
-		if padding < 0 {
-			// Truncate if too long
-			maxLen := m.Width - 8 // Account for prefix, suffix, borders
-			if maxLen > 0 {
-				truncated := item.Label
-				if len(truncated) > maxLen {
-					truncated = truncated[:maxLen-3] + "..."
-				}
-				itemText = prefix + truncated + suffix
-				padding = m.Width - len(itemText) - 2
-			}
-		}
+		// Use centerText to properly center each item
+		centeredItem := m.centerText(itemText, m.Width)
 
-		// Ensure padding is not negative
-		if padding < 0 {
-			padding = 0
-		}
-
-		// Create the final item line with proper padding
-		itemLine := itemText + strings.Repeat(" ", padding)
-
-		// Print the line with highlighting if selected (centered)
+		// Print with highlighting if selected
 		if i == m.Selected {
-			fmt.Printf("%s%s\033[7m%s\033[0m%s\n", strings.Repeat(" ", menuIndent), sideChar, itemLine, sideChar)
+			fmt.Printf("%s║\033[7m%s\033[0m║\n", strings.Repeat(" ", menuIndent), centeredItem)
 		} else {
-			fmt.Printf("%s%s%s%s\n", strings.Repeat(" ", menuIndent), sideChar, itemLine, sideChar)
+			fmt.Printf("%s║%s║\n", strings.Repeat(" ", menuIndent), centeredItem)
 		}
 	}
 
-	// Bottom border (centered)
-	fmt.Printf("%s+%s+\n", strings.Repeat(" ", menuIndent), strings.Repeat(borderChar, m.Width-2))
+	// Use your drawBottomBorder function
+	fmt.Print(strings.Repeat(" ", menuIndent))
+	m.drawBottomBorder(m.Width)
 
 	fmt.Println()
 	fmt.Printf("%sUse ↑/↓ arrows to navigate, Enter to select, 'q' to quit\n", strings.Repeat(" ", menuIndent))
