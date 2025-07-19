@@ -22,6 +22,21 @@ func main() {
 
 	// Initialize database connection (if configured)
 	var db *database.DB
+	if cfg.DatabaseURL != "" {
+		var err error
+		db, err = database.Connect(cfg.DatabaseURL)
+		if err != nil {
+			log.Fatalf("Could not connect to the database: %v", err)
+		}
+		defer db.Close()
+	}
+
+	// Create tables if they don't exist
+	if err := db.CreateTables(); err != nil {
+		log.Fatalf("Could not create database tables: %v", err)
+	}
+	fmt.Println("✅ Database connected and tables verified.")
+
 	var authManager *auth.CLIAuth
 
 	if cfg.DatabaseURL != "" && cfg.DatabaseURL != "disabled" {
@@ -163,34 +178,113 @@ func showUserProfile(db *database.DB, authManager *auth.CLIAuth) {
 }
 
 func showLeaderboard(db *database.DB) {
-	fmt.Println("\n🏆 LEADERBOARDS")
-	fmt.Println("================")
+	// For now, we'll show typing game by default
+	// Later we can expand this to show a game selection menu
 
-	// Show typing game leaderboard
-	entries, err := db.GetLeaderboard("typing", 10)
+	availableGames := map[string]string{
+		"typing": "🎯 Typing Speed Challenge",
+		// Add more games here as you create them:
+		// "memory": "🧠 Memory Challenge",
+		// "math":   "🔢 Math Speed Test",
+	}
+
+	// For now, let's show typing game leaderboard
+	// In the future, we'll add a submenu here
+	gameType := "typing"
+	gameName := availableGames[gameType]
+
+	fmt.Println("\n" + strings.Repeat("🏆", 25))
+	fmt.Printf("         LEADERBOARDS - %s\n", gameName)
+	fmt.Println(strings.Repeat("🏆", 25))
+
+	// Get leaderboard data
+	entries, err := db.GetLeaderboard(gameType, 15) // Show top 15
 	if err != nil {
-		fmt.Printf("Error loading leaderboard: %v\n", err)
-		fmt.Println("Press Enter to continue...")
+		fmt.Printf("❌ Error loading leaderboard: %v\n", err)
+		fmt.Println("\nPress Enter to continue...")
 		fmt.Scanln()
 		return
 	}
 
 	if len(entries) == 0 {
-		fmt.Println("No scores recorded yet. Be the first to play!")
+		fmt.Println("\n📝 No scores recorded yet!")
+		fmt.Println("🎮 Be the first to play and set a record!")
+		fmt.Println("💡 Log in and play some games to see your scores here.")
 	} else {
-		fmt.Println("\n🎯 Typing Speed Challenge - Top 10")
-		fmt.Println("Rank | Player          | Best Score | Games | Avg Score")
-		fmt.Println(strings.Repeat("=", 55))
+		fmt.Printf("\n📊 Showing Top %d Players:\n", len(entries))
+		fmt.Println(strings.Repeat("=", 70))
+		fmt.Printf("%-4s | %-15s | %-10s | %-6s | %-8s | %s\n",
+			"Rank", "Player", "Best Score", "Games", "Avg", "Last Played")
+		fmt.Println(strings.Repeat("-", 70))
 
 		for i, entry := range entries {
-			fmt.Printf("%-4d | %-15s | %-10d | %-5d | %.1f\n",
-				i+1, entry.Username, entry.BestScore,
-				entry.GamesPlayed, entry.AvgScore)
+			// Format the last played date
+			lastPlayed := entry.LastPlayed.Format("Jan 02")
+
+			// Add medal emojis for top 3
+			rankDisplay := fmt.Sprintf("%d", i+1)
+			switch i {
+			case 0:
+				rankDisplay = "🥇"
+			case 1:
+				rankDisplay = "🥈"
+			case 2:
+				rankDisplay = "🥉"
+			}
+
+			fmt.Printf("%-4s | %-15s | %-10d | %-6d | %-8.1f | %s\n",
+				rankDisplay,
+				truncateString(entry.Username, 15),
+				entry.BestScore,
+				entry.GamesPlayed,
+				entry.AvgScore,
+				lastPlayed)
 		}
+
+		fmt.Println(strings.Repeat("=", 70))
+
+		// Show some interesting stats
+		showLeaderboardStats(entries)
 	}
 
+	fmt.Println("\n💡 Future: We'll add a menu to select different game leaderboards!")
+	fmt.Println("🎮 For now, only Typing Speed Challenge is available.")
 	fmt.Println("\nPress Enter to continue...")
 	fmt.Scanln()
+}
+
+// Helper function to show interesting leaderboard statistics
+func showLeaderboardStats(entries []database.LeaderboardEntry) {
+	if len(entries) == 0 {
+		return
+	}
+
+	// Calculate some interesting stats
+	totalGames := 0
+	totalScore := 0
+	for _, entry := range entries {
+		totalGames += entry.GamesPlayed
+		totalScore += entry.BestScore
+	}
+
+	avgBestScore := float64(totalScore) / float64(len(entries))
+
+	fmt.Println("\n📈 Community Stats:")
+	fmt.Printf("   🎮 Total Games Played: %d\n", totalGames)
+	fmt.Printf("   👥 Active Players: %d\n", len(entries))
+	fmt.Printf("   📊 Average Best Score: %.1f\n", avgBestScore)
+
+	if len(entries) > 0 {
+		fmt.Printf("   🏆 Highest Score: %d (by %s)\n", entries[0].BestScore, entries[0].Username)
+	}
+}
+
+// Helper function to truncate long usernames
+func truncateString(s string, maxLen int) string {
+	if len(s) <= maxLen {
+		return s
+	}
+	return s[:maxLen-2] + ".."
 }
 
 func showSettings(cfg *config.Config) {
@@ -213,3 +307,63 @@ func showSettings(cfg *config.Config) {
 	fmt.Println("\nPress Enter to continue...")
 	fmt.Scanln()
 }
+
+// Function to show challenge mode leaderboard (separate from individual games)
+// func showChallengeLeaderboard(db *database.DB) {
+// 	fmt.Println("\n" + strings.Repeat("🏆", 30))
+// 	fmt.Println("         CHALLENGE MODE LEADERBOARD")
+// 	fmt.Println(strings.Repeat("🏆", 30))
+
+// 	// Get top challenge scores
+// 	scores, err := db.GetTopChallengeScores(15)
+// 	if err != nil {
+// 		fmt.Printf("❌ Error loading challenge leaderboard: %v\n", err)
+// 		fmt.Println("\nPress Enter to continue...")
+// 		fmt.Scanln()
+// 		return
+// 	}
+
+// 	if len(scores) == 0 {
+// 		fmt.Println("\n📝 No challenge scores recorded yet!")
+// 		fmt.Println("🎮 Complete a challenge to see your score here!")
+// 	} else {
+// 		fmt.Printf("\n📊 Top %d Challenge Performances:\n", len(scores))
+// 		fmt.Println(strings.Repeat("=", 80))
+// 		fmt.Printf("%-5s | %-15s | %-12s | %-8s | %-10s | %s\n",
+// 			"Rank", "Player", "Total Score", "Games", "Accuracy", "Perfect Games")
+// 		fmt.Println(strings.Repeat("-", 80))
+
+// 		for i, score := range scores {
+// 			rankIcon := ""
+// 			switch i {
+// 			case 0:
+// 				rankIcon = "🥇"
+// 			case 1:
+// 				rankIcon = "🥈"
+// 			case 2:
+// 				rankIcon = "🥉"
+// 			default:
+// 				rankIcon = fmt.Sprintf("%2d", i+1)
+// 			}
+
+// 			// Extract data from the map (since GetTopChallengeScores returns []map[string]interface{})
+// 			username := score["username"].(string)
+// 			totalScore := score["total_score"].(int)
+// 			gamesPlayed := score["games_played"].(int)
+// 			avgAccuracy := score["avg_accuracy"].(float64)
+// 			perfectGames := score["perfect_games"].(int)
+
+// 			fmt.Printf("%-5s | %-15s | %-12d | %-8d | %-9.1f%% | %d\n",
+// 				rankIcon,
+// 				truncateString(username, 15),
+// 				totalScore,
+// 				gamesPlayed,
+// 				avgAccuracy,
+// 				perfectGames)
+// 		}
+// 		fmt.Println(strings.Repeat("=", 80))
+// 	}
+
+// 	fmt.Println("\nPress Enter to continue...")
+// 	fmt.Scanln()
+// }

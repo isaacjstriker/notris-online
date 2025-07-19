@@ -242,13 +242,43 @@ func (db *DB) GetLeaderboard(gameType string, limit int) ([]LeaderboardEntry, er
 	var entries []LeaderboardEntry
 	for rows.Next() {
 		var entry LeaderboardEntry
+		var lastPlayedStr string // Scan as string first
+
 		err := rows.Scan(
 			&entry.Username, &entry.GameType, &entry.BestScore,
-			&entry.AvgScore, &entry.GamesPlayed, &entry.LastPlayed,
+			&entry.AvgScore, &entry.GamesPlayed, &lastPlayedStr,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan leaderboard entry: %w", err)
 		}
+
+		// Parse the date string into time.Time
+		if lastPlayedStr != "" {
+			// Try different SQLite datetime formats
+			formats := []string{
+				"2006-01-02 15:04:05",  // SQLite default format
+				"2006-01-02T15:04:05Z", // ISO format
+				"2006-01-02T15:04:05",  // ISO without timezone
+				time.RFC3339,           // RFC3339 format
+			}
+
+			var parsed bool
+			for _, format := range formats {
+				if t, err := time.Parse(format, lastPlayedStr); err == nil {
+					entry.LastPlayed = t
+					parsed = true
+					break
+				}
+			}
+
+			if !parsed {
+				// If all parsing fails, use current time as fallback
+				entry.LastPlayed = time.Now()
+			}
+		} else {
+			entry.LastPlayed = time.Now()
+		}
+
 		entries = append(entries, entry)
 	}
 
@@ -272,12 +302,39 @@ func (db *DB) GetUserStats(userID int, gameType string) (*LeaderboardEntry, erro
 	`
 
 	var entry LeaderboardEntry
+	var lastPlayedStr string
+
 	err := db.conn.QueryRow(query, gameType, gameType, userID).Scan(
 		&entry.Username, &entry.GameType, &entry.BestScore,
-		&entry.AvgScore, &entry.GamesPlayed, &entry.LastPlayed,
+		&entry.AvgScore, &entry.GamesPlayed, &lastPlayedStr,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get user stats: %w", err)
+	}
+
+	// Parse the date string into time.Time
+	if lastPlayedStr != "" {
+		formats := []string{
+			"2006-01-02 15:04:05",
+			"2006-01-02T15:04:05Z",
+			"2006-01-02T15:04:05",
+			time.RFC3339,
+		}
+
+		var parsed bool
+		for _, format := range formats {
+			if t, err := time.Parse(format, lastPlayedStr); err == nil {
+				entry.LastPlayed = t
+				parsed = true
+				break
+			}
+		}
+
+		if !parsed {
+			entry.LastPlayed = time.Now()
+		}
+	} else {
+		entry.LastPlayed = time.Now()
 	}
 
 	return &entry, nil
