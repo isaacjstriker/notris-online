@@ -73,12 +73,19 @@ func main() {
 
 		// User-specific items
 		if authManager != nil && authManager.GetSession().IsLoggedIn() {
-			userInfo := authManager.GetSession().GetUserInfo()
-			menuItems = append(menuItems,
-				ui.MenuItem{Label: fmt.Sprintf("👤 %s", userInfo), Value: "user_info"},
-				ui.MenuItem{Label: "🏆 View Leaderboards", Value: "leaderboard"},
-				ui.MenuItem{Label: "🔄 Authentication", Value: "auth"},
-			)
+			session := authManager.GetSession().GetCurrentSession()
+			userDisplayName := "User"
+			if session != nil {
+				userDisplayName = session.Username
+			}
+
+			menuItems = []ui.MenuItem{
+				{Label: fmt.Sprintf("👤 %s", userDisplayName), Value: "user_info"},
+				{Label: "🎲 Challenge Mode (All Games)", Value: "challenge"},
+				{Label: "🎯 Typing Speed Challenge", Value: "typing"},
+				{Label: "🏆 View Leaderboards", Value: "leaderboard"},
+				{Label: "🔄 Authentication", Value: "auth"},
+			}
 		} else if authManager != nil {
 			menuItems = append(menuItems,
 				ui.MenuItem{Label: "👤 Login / Register", Value: "auth"},

@@ -10,9 +10,9 @@ require (
 	golang.org/x/term v0.33.0
 )
 
-require github.com/yuin/gopher-lua v1.1.1
-
 require (
 	github.com/eiannone/keyboard v0.0.0-20220611211555-0d226195f203
-	golang.org/x/sys v0.34.0 //indirect
+	github.com/yuin/gopher-lua v1.1.1
 )
+
+require golang.org/x/sys v0.34.0 //indirect
