@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"regexp"
 	"strings"
 	"syscall"
 
@@ -11,30 +12,7 @@ import (
 	"golang.org/x/term"
 )
 
-// HashPassword hashes a password using bcrypt
-func HashPassword(password string) (string, error) {
-	bytes, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
-	return string(bytes), err
-}
-
-// CheckPassword compares a password with its hash
-func CheckPassword(password, hash string) bool {
-	err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(password))
-	return err == nil
-}
-
-// ReadPassword reads a password from stdin without echoing it
-func ReadPassword(prompt string) (string, error) {
-	fmt.Print(prompt)
-	bytePassword, err := term.ReadPassword(int(syscall.Stdin))
-	if err != nil {
-		return "", err
-	}
-	fmt.Println() // Add a newline after password input
-	return string(bytePassword), nil
-}
-
-// ReadInput reads a line of input from stdin
+// ReadInput reads a line of input from the user
 func ReadInput(prompt string) (string, error) {
 	fmt.Print(prompt)
 	reader := bufio.NewReader(os.Stdin)
@@ -45,7 +23,33 @@ func ReadInput(prompt string) (string, error) {
 	return strings.TrimSpace(input), nil
 }
 
-// ValidateUsername checks if a username is valid
+// ReadPassword reads a password without echoing it to the terminal
+func ReadPassword(prompt string) (string, error) {
+	fmt.Print(prompt)
+	bytePassword, err := term.ReadPassword(int(syscall.Stdin))
+	if err != nil {
+		return "", err
+	}
+	fmt.Println() // Print a newline after password input
+	return string(bytePassword), nil
+}
+
+// HashPassword hashes a password using bcrypt
+func HashPassword(password string) (string, error) {
+	hashedBytes, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return "", err
+	}
+	return string(hashedBytes), nil
+}
+
+// CheckPassword checks if a password matches the hash
+func CheckPassword(password, hash string) bool {
+	err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(password))
+	return err == nil
+}
+
+// ValidateUsername validates a username
 func ValidateUsername(username string) error {
 	if len(username) < 3 {
 		return fmt.Errorf("username must be at least 3 characters long")
@@ -53,29 +57,53 @@ func ValidateUsername(username string) error {
 	if len(username) > 50 {
 		return fmt.Errorf("username must be no more than 50 characters long")
 	}
-	// Add more validation rules as needed
+
+	// Check if username contains only alphanumeric characters and underscores
+	matched, err := regexp.MatchString("^[a-zA-Z0-9_]+$", username)
+	if err != nil {
+		return err
+	}
+	if !matched {
+		return fmt.Errorf("username can only contain letters, numbers, and underscores")
+	}
+
 	return nil
 }
 
-// ValidateEmail checks if an email is valid (basic validation)
+// ValidateEmail validates an email address
 func ValidateEmail(email string) error {
-	if len(email) < 5 {
-		return fmt.Errorf("email must be at least 5 characters long")
+	if len(email) == 0 {
+		return fmt.Errorf("email cannot be empty")
 	}
-	if !strings.Contains(email, "@") {
-		return fmt.Errorf("email must contain @ symbol")
+
+	// Basic email validation
+	emailRegex := regexp.MustCompile(`^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`)
+	if !emailRegex.MatchString(email) {
+		return fmt.Errorf("invalid email format")
 	}
-	if !strings.Contains(email, ".") {
-		return fmt.Errorf("email must contain a domain")
-	}
+
 	return nil
 }
 
-// ValidatePassword checks if a password meets requirements
+// ValidatePassword validates a password
 func ValidatePassword(password string) error {
 	if len(password) < 8 {
 		return fmt.Errorf("password must be at least 8 characters long")
 	}
-	// Add more validation rules as needed (uppercase, numbers, symbols)
+	if len(password) > 128 {
+		return fmt.Errorf("password must be no more than 128 characters long")
+	}
+
+	// Check for at least one letter and one number
+	hasLetter := regexp.MustCompile(`[a-zA-Z]`).MatchString(password)
+	hasNumber := regexp.MustCompile(`[0-9]`).MatchString(password)
+
+	if !hasLetter {
+		return fmt.Errorf("password must contain at least one letter")
+	}
+	if !hasNumber {
+		return fmt.Errorf("password must contain at least one number")
+	}
+
 	return nil
 }

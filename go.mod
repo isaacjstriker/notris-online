@@ -6,10 +6,11 @@ require (
 	github.com/joho/godotenv v1.5.1
 	github.com/lib/pq v1.10.9
 	github.com/mattn/go-sqlite3 v1.14.28
-	github.com/yuin/gopher-lua v1.1.1
 	golang.org/x/crypto v0.40.0
 	golang.org/x/term v0.33.0
 )
+
+require github.com/yuin/gopher-lua v1.1.1
 
 require (
 	github.com/eiannone/keyboard v0.0.0-20220611211555-0d226195f203

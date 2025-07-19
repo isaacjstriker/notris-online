@@ -208,16 +208,27 @@ func (auth *CLIAuth) handleRegister() {
 
 // handleLogout handles user logout
 func (auth *CLIAuth) handleLogout() {
-	username := auth.session.current.Username
-	err := auth.session.ClearSession()
-	if err != nil {
-		fmt.Printf("Error clearing session: %v\n", err)
-		return
+	var username string
+	if auth.session.IsLoggedIn() {
+		session := auth.session.GetCurrentSession()
+		if session != nil {
+			username = session.Username
+		}
 	}
 
-	fmt.Printf("👋 Goodbye, %s! You have been logged out.\n", username)
-	fmt.Println("Press Enter to continue...")
-	fmt.Scanln()
+	err := auth.session.ClearSession()
+    if err != nil {
+        fmt.Printf("Error clearing session: %v\n", err)
+        return
+    }
+
+    if username != "" {
+        fmt.Printf("👋 Goodbye, %s! You have been logged out.\n", username)
+    } else {
+        fmt.Println("👋 You have been logged out.")
+    }
+    fmt.Println("Press Enter to continue...")
+    fmt.Scanln()
 }
 
 // RequireAuth ensures user is authenticated, prompting login if needed

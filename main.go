@@ -47,34 +47,31 @@ func main() {
 
 	// Main application loop
 	for {
-		// Create menu items based on available features
+		// Build menu items step by step
 		var menuItems []ui.MenuItem
 
+		// Always available items
+		menuItems = append(menuItems,
+			ui.MenuItem{Label: "🎲 Challenge Mode (All Games)", Value: "challenge"},
+			ui.MenuItem{Label: "🎯 Typing Speed Challenge", Value: "typing"},
+		)
+
+		// User-specific items
 		if authManager != nil && authManager.GetSession().IsLoggedIn() {
 			userInfo := authManager.GetSession().GetUserInfo()
-			menuItems = []ui.MenuItem{
-				{Label: fmt.Sprintf("👤 %s", userInfo), Value: "user_info"},
-				{Label: "🎲 Challenge Mode (All Games)", Value: "challenge"},
-				{Label: "🎯 Typing Speed Challenge", Value: "typing"},
-				{Label: "🏆 View Leaderboards", Value: "leaderboard"},
-				{Label: "🔄 Authentication", Value: "auth"},
-				{Label: "⚙️  Settings", Value: "settings"},
-				{Label: "❌ Exit", Value: "exit"},
-			}
-		} else {
-			menuItems = []ui.MenuItem{
-				{Label: "🎲 Challenge Mode (All Games)", Value: "challenge"},
-				{Label: "🎯 Typing Speed Challenge", Value: "typing"},
-				// ... rest of menu
-			}
+			menuItems = append(menuItems,
+				ui.MenuItem{Label: fmt.Sprintf("👤 %s", userInfo), Value: "user_info"},
+				ui.MenuItem{Label: "🏆 View Leaderboards", Value: "leaderboard"},
+				ui.MenuItem{Label: "🔄 Authentication", Value: "auth"},
+			)
+		} else if authManager != nil {
+			menuItems = append(menuItems,
+				ui.MenuItem{Label: "👤 Login / Register", Value: "auth"},
+				ui.MenuItem{Label: "🏆 View Leaderboards", Value: "leaderboard"},
+			)
 		}
 
-		// Add auth option only if database is available
-		if authManager != nil {
-			menuItems = append(menuItems, ui.MenuItem{Label: "👤 Login / Register", Value: "auth"})
-			menuItems = append(menuItems, ui.MenuItem{Label: "🏆 View Leaderboards", Value: "leaderboard"})
-		}
-
+		// Always at the end
 		menuItems = append(menuItems,
 			ui.MenuItem{Label: "⚙️  Settings", Value: "settings"},
 			ui.MenuItem{Label: "❌ Exit", Value: "exit"},
@@ -86,8 +83,9 @@ func main() {
 
 		switch choice {
 		case "typing":
+			typingGame := typing.NewTypingGame()
 			if authManager != nil {
-				typing.RunWithAuth(db, authManager)
+				typingGame.Play(db, authManager)
 			}
 
 		case "auth":
