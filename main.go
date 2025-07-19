@@ -5,6 +5,7 @@ import (
 	"log"
 	"strings"
 
+	"github.com/isaacjstriker/devware/games"
 	"github.com/isaacjstriker/devware/games/typing"
 	"github.com/isaacjstriker/devware/internal/auth"
 	"github.com/isaacjstriker/devware/internal/config"
@@ -50,10 +51,10 @@ func main() {
 		var menuItems []ui.MenuItem
 
 		if authManager != nil && authManager.GetSession().IsLoggedIn() {
-			// Show user info in menu when logged in
 			userInfo := authManager.GetSession().GetUserInfo()
 			menuItems = []ui.MenuItem{
 				{Label: fmt.Sprintf("👤 %s", userInfo), Value: "user_info"},
+				{Label: "🎲 Challenge Mode (All Games)", Value: "challenge"},
 				{Label: "🎯 Typing Speed Challenge", Value: "typing"},
 				{Label: "🏆 View Leaderboards", Value: "leaderboard"},
 				{Label: "🔄 Authentication", Value: "auth"},
@@ -62,20 +63,22 @@ func main() {
 			}
 		} else {
 			menuItems = []ui.MenuItem{
+				{Label: "🎲 Challenge Mode (All Games)", Value: "challenge"},
 				{Label: "🎯 Typing Speed Challenge", Value: "typing"},
+				// ... rest of menu
 			}
-
-			// Add auth option only if database is available
-			if authManager != nil {
-				menuItems = append(menuItems, ui.MenuItem{Label: "👤 Login / Register", Value: "auth"})
-				menuItems = append(menuItems, ui.MenuItem{Label: "🏆 View Leaderboards", Value: "leaderboard"})
-			}
-
-			menuItems = append(menuItems,
-				ui.MenuItem{Label: "⚙️  Settings", Value: "settings"},
-				ui.MenuItem{Label: "❌ Exit", Value: "exit"},
-			)
 		}
+
+		// Add auth option only if database is available
+		if authManager != nil {
+			menuItems = append(menuItems, ui.MenuItem{Label: "👤 Login / Register", Value: "auth"})
+			menuItems = append(menuItems, ui.MenuItem{Label: "🏆 View Leaderboards", Value: "leaderboard"})
+		}
+
+		menuItems = append(menuItems,
+			ui.MenuItem{Label: "⚙️  Settings", Value: "settings"},
+			ui.MenuItem{Label: "❌ Exit", Value: "exit"},
+		)
 
 		// Create and show menu
 		menu := ui.NewMenu("Main Menu - Select Your Adventure", menuItems)
@@ -120,6 +123,14 @@ func main() {
 				fmt.Printf("🔐 %s will remain logged in for next time.\n", authManager.GetSession().GetCurrentSession().Username)
 			}
 			return
+
+		case "challenge":
+			gameRegistry := games.NewGameRegistry()
+			gameRegistry.RegisterGame(typing.NewTypingGame())
+			// Register other games as you create them
+
+			challengeMode := games.NewChallengeMode(gameRegistry)
+			challengeMode.RunChallenge(db, authManager)
 
 		default:
 			fmt.Println("Invalid selection. Please try again.")
