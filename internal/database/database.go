@@ -1,6 +1,7 @@
 package database
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -10,13 +11,12 @@ import (
 	"github.com/isaacjstriker/devware/internal/types" // Change this import
 
 	_ "github.com/lib/pq"           // PostgreSQL driver
-	_ "github.com/mattn/go-sqlite3" // SQLite driver
+	_ "github.com/mattn/go-sqlite3" // Keep SQLite driver for local development
 )
 
 type DB struct {
-	conn *sql.DB
-	// Embed generated queries when ready
-	// *generated.Queries
+	conn   *sql.DB
+	dbType string // "postgres" or "sqlite3"
 }
 
 type User struct {
@@ -47,33 +47,35 @@ type LeaderboardEntry struct {
 
 // Connect establishes a connection to the database
 func Connect(databaseURL string) (*DB, error) {
-	var driverName string
-	var dataSourceName string
+	var db *sql.DB
+	var err error
+	var dbType string
 
-	// Parse database URL to determine driver
-	if strings.HasPrefix(databaseURL, "postgres://") || strings.HasPrefix(databaseURL, "postgresql://") {
-		driverName = "postgres"
-		dataSourceName = databaseURL
-	} else if strings.HasPrefix(databaseURL, "sqlite3://") {
-		driverName = "sqlite3"
-		dataSourceName = strings.TrimPrefix(databaseURL, "sqlite3://")
+	if strings.HasPrefix(databaseURL, "postgresql://") || strings.HasPrefix(databaseURL, "postgres://") {
+		// PostgreSQL connection
+		db, err = sql.Open("postgres", databaseURL)
+		dbType = "postgres"
 	} else {
-		return nil, fmt.Errorf("unsupported database URL format: %s", databaseURL)
+		// SQLite connection (for local development)
+		db, err = sql.Open("sqlite3", databaseURL)
+		dbType = "sqlite3"
 	}
 
-	conn, err := sql.Open(driverName, dataSourceName)
 	if err != nil {
-		return nil, fmt.Errorf("failed to connect to database: %w", err)
+		return nil, fmt.Errorf("failed to open database: %w", err)
 	}
 
-	if err := conn.Ping(); err != nil {
+	// Test the connection
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if err := db.PingContext(ctx); err != nil {
 		return nil, fmt.Errorf("failed to ping database: %w", err)
 	}
 
 	return &DB{
-		conn: conn,
-		// Initialize generated queries when ready
-		// Queries: generated.New(conn),
+		conn:   db,
+		dbType: dbType,
 	}, nil
 }
 
