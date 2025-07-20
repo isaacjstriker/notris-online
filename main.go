@@ -20,44 +20,34 @@ func main() {
 		log.Fatalf("Failed to load configuration: %v", err)
 	}
 
-	// Initialize database connection (if configured)
-	var db *database.DB
-	if cfg.DatabaseURL != "" {
-		var err error
-		db, err = database.Connect(cfg.DatabaseURL)
-		if err != nil {
-			log.Fatalf("Could not connect to the database: %v", err)
-		}
-		defer db.Close()
+	//Test connection to database first
+	testSupabaseConnection()
+
+	// Initialize database connection with fallback
+	db, err := database.ConnectWithFallback(cfg.DatabaseURL)
+	if err != nil {
+		log.Fatalf("Could not connect to any database: %v", err)
 	}
+	defer db.Close()
 
 	// Create tables if they don't exist
 	if err := db.CreateTables(); err != nil {
-		log.Fatalf("Could not create database tables: %v", err)
+		log.Fatalf("Failed to create tables: %v", err)
 	}
+
+	// Add test data if database is empty
+	if err := db.CreateTestData(); err != nil {
+		fmt.Printf("ℹ️  Test data: %v\n", err)
+	}
+
 	fmt.Println("✅ Database connected and tables verified.")
 
 	var authManager *auth.CLIAuth
 
-	if cfg.DatabaseURL != "" && cfg.DatabaseURL != "disabled" {
-		fmt.Println("🔗 Connecting to database...")
-		db, err = database.Connect(cfg.DatabaseURL)
-		if err != nil {
-			fmt.Printf("⚠️  Warning: Database connection failed: %v\n", err)
-			fmt.Println("🔄 Continuing in offline mode...")
-		} else {
-			fmt.Println("✅ Database connected successfully!")
-
-			// Create tables if they don't exist
-			if err := db.CreateTables(); err != nil {
-				fmt.Printf("⚠️  Warning: Failed to create tables: %v\n", err)
-			}
-
-			// Initialize authentication
-			authManager = auth.NewCLIAuth(db)
-		}
-	} else {
-		fmt.Println("📝 Running in offline mode (no database configured)")
+	// Initialize authentication if database is available
+	if db != nil {
+		authManager = auth.NewCLIAuth(db)
+		fmt.Println("🔐 Authentication system initialized.")
 	}
 
 	// Main application loop
@@ -154,6 +144,14 @@ func main() {
 
 		default:
 			fmt.Println("Invalid selection. Please try again.")
+		}
+
+		// Debug: Show login status
+		if authManager != nil && authManager.GetSession().IsLoggedIn() {
+			session := authManager.GetSession().GetCurrentSession()
+			fmt.Printf("🔐 Debug: Logged in as %s (ID: %d)\n", session.Username, session.UserID)
+		} else {
+			fmt.Println("❌ Debug: Not logged in")
 		}
 	}
 }
@@ -314,63 +312,3 @@ func showSettings(cfg *config.Config) {
 	fmt.Println("\nPress Enter to continue...")
 	fmt.Scanln()
 }
-
-// Function to show challenge mode leaderboard (separate from individual games)
-// func showChallengeLeaderboard(db *database.DB) {
-// 	fmt.Println("\n" + strings.Repeat("🏆", 30))
-// 	fmt.Println("         CHALLENGE MODE LEADERBOARD")
-// 	fmt.Println(strings.Repeat("🏆", 30))
-
-// 	// Get top challenge scores
-// 	scores, err := db.GetTopChallengeScores(15)
-// 	if err != nil {
-// 		fmt.Printf("❌ Error loading challenge leaderboard: %v\n", err)
-// 		fmt.Println("\nPress Enter to continue...")
-// 		fmt.Scanln()
-// 		return
-// 	}
-
-// 	if len(scores) == 0 {
-// 		fmt.Println("\n📝 No challenge scores recorded yet!")
-// 		fmt.Println("🎮 Complete a challenge to see your score here!")
-// 	} else {
-// 		fmt.Printf("\n📊 Top %d Challenge Performances:\n", len(scores))
-// 		fmt.Println(strings.Repeat("=", 80))
-// 		fmt.Printf("%-5s | %-15s | %-12s | %-8s | %-10s | %s\n",
-// 			"Rank", "Player", "Total Score", "Games", "Accuracy", "Perfect Games")
-// 		fmt.Println(strings.Repeat("-", 80))
-
-// 		for i, score := range scores {
-// 			rankIcon := ""
-// 			switch i {
-// 			case 0:
-// 				rankIcon = "🥇"
-// 			case 1:
-// 				rankIcon = "🥈"
-// 			case 2:
-// 				rankIcon = "🥉"
-// 			default:
-// 				rankIcon = fmt.Sprintf("%2d", i+1)
-// 			}
-
-// 			// Extract data from the map (since GetTopChallengeScores returns []map[string]interface{})
-// 			username := score["username"].(string)
-// 			totalScore := score["total_score"].(int)
-// 			gamesPlayed := score["games_played"].(int)
-// 			avgAccuracy := score["avg_accuracy"].(float64)
-// 			perfectGames := score["perfect_games"].(int)
-
-// 			fmt.Printf("%-5s | %-15s | %-12d | %-8d | %-9.1f%% | %d\n",
-// 				rankIcon,
-// 				truncateString(username, 15),
-// 				totalScore,
-// 				gamesPlayed,
-// 				avgAccuracy,
-// 				perfectGames)
-// 		}
-// 		fmt.Println(strings.Repeat("=", 80))
-// 	}
-
-// 	fmt.Println("\nPress Enter to continue...")
-// 	fmt.Scanln()
-// }

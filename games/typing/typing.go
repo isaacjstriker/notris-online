@@ -111,6 +111,32 @@ func (tg *TypingGame) Play(db interface{}, authManager interface{}) *types.GameR
 		}
 	}
 
+	fmt.Printf("\n🎯 Final Score: %d\n", result.Score)
+
+	// Check if user is logged in
+	if realAuth == nil || !realAuth.GetSession().IsLoggedIn() {
+		fmt.Println("⚠️  Not logged in - score won't be saved!")
+		fmt.Println("💡 Log in to save your scores to the leaderboard.")
+		return result
+	}
+
+	session := realAuth.GetSession().GetCurrentSession()
+	if session == nil {
+		fmt.Println("❌ No valid session - score won't be saved!")
+		return result
+	}
+
+	fmt.Printf("💾 Attempting to save score for user: %s (ID: %d)\n", session.Username, session.UserID)
+
+	// Submit score to database
+	err = realDB.SubmitScore(session.UserID, "typing", result.Score, nil)
+	if err != nil {
+		fmt.Printf("❌ Error saving score: %v\n", err)
+		return result
+	}
+
+	fmt.Println("✅ Score saved successfully!")
+
 	return result
 }
 

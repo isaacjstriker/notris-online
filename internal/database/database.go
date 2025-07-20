@@ -1,14 +1,18 @@
 package database
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
+	"os"
 	"strings"
 	"time"
 
-	"github.com/isaacjstriker/devware/internal/types" // Change this import
+	"github.com/isaacjstriker/devware/internal/types"
 
 	_ "github.com/lib/pq"           // PostgreSQL driver
 	_ "github.com/mattn/go-sqlite3" // Keep SQLite driver for local development
@@ -36,9 +40,18 @@ type GameScore struct {
 	PlayedAt       time.Time              `json:"played_at"`
 }
 
+// LeaderboardEntry represents a single entry in the leaderboard
 type LeaderboardEntry struct {
 	Username    string    `json:"username"`
 	GameType    string    `json:"game_type"`
+	BestScore   int       `json:"best_score"`
+	AvgScore    float64   `json:"avg_score"`
+	GamesPlayed int       `json:"games_played"`
+	LastPlayed  time.Time `json:"last_played"`
+}
+
+// UserStats represents user statistics for a specific game
+type UserStats struct {
 	BestScore   int       `json:"best_score"`
 	AvgScore    float64   `json:"avg_score"`
 	GamesPlayed int       `json:"games_played"`
@@ -52,7 +65,15 @@ func Connect(databaseURL string) (*DB, error) {
 	var dbType string
 
 	if strings.HasPrefix(databaseURL, "postgresql://") || strings.HasPrefix(databaseURL, "postgres://") {
-		// PostgreSQL connection
+		// PostgreSQL connection with SSL and IPv4 preference
+		if !strings.Contains(databaseURL, "sslmode") {
+			if strings.Contains(databaseURL, "?") {
+				databaseURL += "&sslmode=require"
+			} else {
+				databaseURL += "?sslmode=require"
+			}
+		}
+
 		db, err = sql.Open("postgres", databaseURL)
 		dbType = "postgres"
 	} else {
@@ -65,8 +86,13 @@ func Connect(databaseURL string) (*DB, error) {
 		return nil, fmt.Errorf("failed to open database: %w", err)
 	}
 
-	// Test the connection
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	// Configure connection pool
+	db.SetMaxOpenConns(25)
+	db.SetMaxIdleConns(25)
+	db.SetConnMaxLifetime(5 * time.Minute)
+
+	// Test the connection with a longer timeout for remote databases
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 
 	if err := db.PingContext(ctx); err != nil {
@@ -77,6 +103,23 @@ func Connect(databaseURL string) (*DB, error) {
 		conn:   db,
 		dbType: dbType,
 	}, nil
+}
+
+// ConnectWithFallback tries to connect to the configured database URL, and falls back to a local SQLite database if it fails
+func ConnectWithFallback(databaseURL string) (*DB, error) {
+	// First try the configured database
+	if databaseURL != "" {
+		db, err := Connect(databaseURL)
+		if err == nil {
+			fmt.Printf("✅ Connected to configured database\n")
+			return db, nil
+		}
+		fmt.Printf("⚠️  Failed to connect to configured database: %v\n", err)
+	}
+
+	// Fallback to local SQLite
+	fmt.Printf("🔄 Falling back to local SQLite database\n")
+	return Connect("devware.db")
 }
 
 // CreateTables creates the necessary database tables
@@ -243,47 +286,6 @@ func (db *DB) SaveGameScore(userID int, gameType string, score int, additionalDa
 	return nil
 }
 
-// SubmitScore submits a game score to the database
-func (db *DB) SubmitScore(userID int, gameType string, score int, metadata map[string]interface{}) error {
-	var query string
-	var args []interface{}
-
-	if db.dbType == "postgres" {
-		query = `INSERT INTO game_scores (user_id, game_type, score, metadata) VALUES ($1, $2, $3, $4)`
-
-		var metadataJSON []byte
-		var err error
-		if metadata != nil {
-			metadataJSON, err = json.Marshal(metadata)
-			if err != nil {
-				return fmt.Errorf("failed to marshal metadata: %w", err)
-			}
-		}
-
-		args = []interface{}{userID, gameType, score, metadataJSON}
-	} else {
-		query = `INSERT INTO game_scores (user_id, game_type, score, metadata) VALUES (?, ?, ?, ?)`
-
-		var metadataJSON string
-		if metadata != nil {
-			jsonBytes, err := json.Marshal(metadata)
-			if err != nil {
-				return fmt.Errorf("failed to marshal metadata: %w", err)
-			}
-			metadataJSON = string(jsonBytes)
-		}
-
-		args = []interface{}{userID, gameType, score, metadataJSON}
-	}
-
-	_, err := db.conn.Exec(query, args...)
-	if err != nil {
-		return fmt.Errorf("failed to submit score: %w", err)
-	}
-
-	return nil
-}
-
 // GetLeaderboard retrieves the leaderboard for a specific game
 func (db *DB) GetLeaderboard(gameType string, limit int) ([]LeaderboardEntry, error) {
 	var query string
@@ -292,23 +294,21 @@ func (db *DB) GetLeaderboard(gameType string, limit int) ([]LeaderboardEntry, er
 		query = `
             SELECT 
                 u.username,
-                $2 as game_type,
                 MAX(gs.score) as best_score,
                 AVG(gs.score) as avg_score,
                 COUNT(gs.id) as games_played,
                 MAX(gs.played_at) as last_played
             FROM users u
             JOIN game_scores gs ON u.id = gs.user_id
-            WHERE gs.game_type = $2
+            WHERE gs.game_type = $1
             GROUP BY u.id, u.username
             ORDER BY best_score DESC
-            LIMIT $1
+            LIMIT $2
         `
 	} else {
 		query = `
             SELECT 
                 u.username,
-                ? as game_type,
                 MAX(gs.score) as best_score,
                 AVG(CAST(gs.score AS REAL)) as avg_score,
                 COUNT(gs.id) as games_played,
@@ -322,15 +322,7 @@ func (db *DB) GetLeaderboard(gameType string, limit int) ([]LeaderboardEntry, er
         `
 	}
 
-	var rows *sql.Rows
-	var err error
-
-	if db.dbType == "postgres" {
-		rows, err = db.conn.Query(query, limit, gameType)
-	} else {
-		rows, err = db.conn.Query(query, gameType, limit)
-	}
-
+	rows, err := db.conn.Query(query, gameType, limit)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get leaderboard: %w", err)
 	}
@@ -339,17 +331,42 @@ func (db *DB) GetLeaderboard(gameType string, limit int) ([]LeaderboardEntry, er
 	var entries []LeaderboardEntry
 	for rows.Next() {
 		var entry LeaderboardEntry
-		var lastPlayed time.Time
+		var lastPlayedStr interface{} // Use interface{} to handle both string and time.Time
 
 		err := rows.Scan(
-			&entry.Username, &entry.GameType, &entry.BestScore,
-			&entry.AvgScore, &entry.GamesPlayed, &lastPlayed,
+			&entry.Username,
+			&entry.BestScore,
+			&entry.AvgScore,
+			&entry.GamesPlayed,
+			&lastPlayedStr,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan leaderboard entry: %w", err)
 		}
 
-		entry.LastPlayed = lastPlayed
+		// Handle date parsing based on database type
+		if db.dbType == "postgres" {
+			// PostgreSQL returns time.Time directly
+			if t, ok := lastPlayedStr.(time.Time); ok {
+				entry.LastPlayed = t
+			}
+		} else {
+			// SQLite returns string, parse it
+			if timeStr, ok := lastPlayedStr.(string); ok {
+				parsedTime, err := time.Parse("2006-01-02 15:04:05", timeStr)
+				if err != nil {
+					// Try alternative SQLite datetime format
+					parsedTime, err = time.Parse("2006-01-02T15:04:05Z", timeStr)
+					if err != nil {
+						// If all else fails, use current time
+						parsedTime = time.Now()
+					}
+				}
+				entry.LastPlayed = parsedTime
+			}
+		}
+
+		entry.GameType = gameType
 		entries = append(entries, entry)
 	}
 
@@ -536,4 +553,56 @@ func (db *DB) GetTopChallengeScores(limit int) ([]map[string]interface{}, error)
 // Close closes the database connection
 func (db *DB) Close() error {
 	return db.conn.Close()
+}
+
+type SupabaseClient struct {
+	URL string
+	Key string
+}
+
+func NewSupabaseClient() *SupabaseClient {
+	return &SupabaseClient{
+		URL: os.Getenv("SUPABASE_URL"),
+		Key: os.Getenv("SUPABASE_KEY"),
+	}
+}
+
+func (s *SupabaseClient) SubmitScore(userID int, gameType string, score int) error {
+	if s.URL == "" || s.Key == "" {
+		return fmt.Errorf("Supabase credentials not configured")
+	}
+
+	payload := map[string]interface{}{
+		"user_id":   userID,
+		"game_type": gameType,
+		"score":     score,
+	}
+
+	jsonData, err := json.Marshal(payload)
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequest("POST", s.URL+"/rest/v1/game_scores", bytes.NewBuffer(jsonData))
+	if err != nil {
+		return err
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("apikey", s.Key)
+	req.Header.Set("Authorization", "Bearer "+s.Key)
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusCreated {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("failed to submit score: %s", string(body))
+	}
+
+	return nil
 }
