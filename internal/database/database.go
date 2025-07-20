@@ -81,52 +81,78 @@ func Connect(databaseURL string) (*DB, error) {
 
 // CreateTables creates the necessary database tables
 func (db *DB) CreateTables() error {
-	queries := []string{
-		// Users table
-		`CREATE TABLE IF NOT EXISTS users (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			username TEXT UNIQUE NOT NULL,
-			email TEXT UNIQUE NOT NULL,
-			password_hash TEXT NOT NULL,
-			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-			last_login DATETIME
-		)`,
+	var queries []string
 
-		// Game scores table
-		`CREATE TABLE IF NOT EXISTS game_scores (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			user_id INTEGER NOT NULL,
-			game_type TEXT NOT NULL,
-			score INTEGER NOT NULL,
-			additional_data TEXT,
-			played_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-			FOREIGN KEY (user_id) REFERENCES users(id)
-		)`,
-
-		// Challenge scores table (NEW)
-		`CREATE TABLE IF NOT EXISTS challenge_scores (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			user_id INTEGER NOT NULL,
-			total_score INTEGER NOT NULL,
-			games_played INTEGER NOT NULL,
-			total_duration REAL NOT NULL,
-			avg_accuracy REAL NOT NULL,
-			perfect_games INTEGER NOT NULL,
-			results_json TEXT NOT NULL,
-			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-			FOREIGN KEY (user_id) REFERENCES users(id)
-		)`,
-
-		// Indexes
-		`CREATE INDEX IF NOT EXISTS idx_game_scores_user_game ON game_scores(user_id, game_type)`,
-		`CREATE INDEX IF NOT EXISTS idx_game_scores_game_score ON game_scores(game_type, score DESC)`,
-		`CREATE INDEX IF NOT EXISTS idx_challenge_scores_user_id ON challenge_scores(user_id)`,
-		`CREATE INDEX IF NOT EXISTS idx_challenge_scores_total_score ON challenge_scores(total_score DESC)`,
+	if db.dbType == "postgres" {
+		// PostgreSQL table creation
+		queries = []string{
+			`CREATE TABLE IF NOT EXISTS users (
+				id SERIAL PRIMARY KEY,
+				username VARCHAR(50) UNIQUE NOT NULL,
+				email VARCHAR(100) UNIQUE NOT NULL,
+				password_hash VARCHAR(255) NOT NULL,
+				created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+				last_login TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+			)`,
+			`CREATE TABLE IF NOT EXISTS game_scores (
+				id SERIAL PRIMARY KEY,
+				user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+				game_type VARCHAR(50) NOT NULL,
+				score INTEGER NOT NULL,
+				metadata JSONB,
+				played_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+			)`,
+			`CREATE TABLE IF NOT EXISTS challenge_scores (
+				id SERIAL PRIMARY KEY,
+				user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+				total_score INTEGER NOT NULL DEFAULT 0,
+				games_played INTEGER NOT NULL DEFAULT 0,
+				avg_accuracy DECIMAL(5,2) NOT NULL DEFAULT 0.0,
+				perfect_games INTEGER NOT NULL DEFAULT 0,
+				created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+				updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+			)`,
+			`CREATE INDEX IF NOT EXISTS idx_game_scores_user_game ON game_scores(user_id, game_type)`,
+			`CREATE INDEX IF NOT EXISTS idx_game_scores_type_score ON game_scores(game_type, score DESC)`,
+			`CREATE INDEX IF NOT EXISTS idx_challenge_scores_total ON challenge_scores(total_score DESC)`,
+		}
+	} else {
+		// SQLite table creation (for local development)
+		queries = []string{
+			`CREATE TABLE IF NOT EXISTS users (
+				id INTEGER PRIMARY KEY AUTOINCREMENT,
+				username TEXT UNIQUE NOT NULL,
+				email TEXT UNIQUE NOT NULL,
+				password_hash TEXT NOT NULL,
+				created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+				last_login DATETIME DEFAULT CURRENT_TIMESTAMP
+			)`,
+			`CREATE TABLE IF NOT EXISTS game_scores (
+				id INTEGER PRIMARY KEY AUTOINCREMENT,
+				user_id INTEGER,
+				game_type TEXT NOT NULL,
+				score INTEGER NOT NULL,
+				metadata TEXT,
+				played_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+				FOREIGN KEY (user_id) REFERENCES users (id)
+			)`,
+			`CREATE TABLE IF NOT EXISTS challenge_scores (
+				id INTEGER PRIMARY KEY AUTOINCREMENT,
+				user_id INTEGER,
+				total_score INTEGER NOT NULL DEFAULT 0,
+				games_played INTEGER NOT NULL DEFAULT 0,
+				avg_accuracy REAL NOT NULL DEFAULT 0.0,
+				perfect_games INTEGER NOT NULL DEFAULT 0,
+				created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+				updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+				FOREIGN KEY (user_id) REFERENCES users (id)
+			)`,
+		}
 	}
 
 	for _, query := range queries {
 		if _, err := db.conn.Exec(query); err != nil {
-			return fmt.Errorf("failed to execute query: %w", err)
+			return fmt.Errorf("failed to create table: %w", err)
 		}
 	}
 
@@ -217,25 +243,94 @@ func (db *DB) SaveGameScore(userID int, gameType string, score int, additionalDa
 	return nil
 }
 
+// SubmitScore submits a game score to the database
+func (db *DB) SubmitScore(userID int, gameType string, score int, metadata map[string]interface{}) error {
+	var query string
+	var args []interface{}
+
+	if db.dbType == "postgres" {
+		query = `INSERT INTO game_scores (user_id, game_type, score, metadata) VALUES ($1, $2, $3, $4)`
+
+		var metadataJSON []byte
+		var err error
+		if metadata != nil {
+			metadataJSON, err = json.Marshal(metadata)
+			if err != nil {
+				return fmt.Errorf("failed to marshal metadata: %w", err)
+			}
+		}
+
+		args = []interface{}{userID, gameType, score, metadataJSON}
+	} else {
+		query = `INSERT INTO game_scores (user_id, game_type, score, metadata) VALUES (?, ?, ?, ?)`
+
+		var metadataJSON string
+		if metadata != nil {
+			jsonBytes, err := json.Marshal(metadata)
+			if err != nil {
+				return fmt.Errorf("failed to marshal metadata: %w", err)
+			}
+			metadataJSON = string(jsonBytes)
+		}
+
+		args = []interface{}{userID, gameType, score, metadataJSON}
+	}
+
+	_, err := db.conn.Exec(query, args...)
+	if err != nil {
+		return fmt.Errorf("failed to submit score: %w", err)
+	}
+
+	return nil
+}
+
 // GetLeaderboard retrieves the leaderboard for a specific game
 func (db *DB) GetLeaderboard(gameType string, limit int) ([]LeaderboardEntry, error) {
-	query := `
-		SELECT 
-			u.username,
-			gs.game_type,
-			MAX(gs.score) as best_score,
-			AVG(CAST(gs.score AS REAL)) as avg_score,
-			COUNT(gs.id) as games_played,
-			MAX(gs.played_at) as last_played
-		FROM users u
-		JOIN game_scores gs ON u.id = gs.user_id
-		WHERE gs.game_type = ?
-		GROUP BY u.id, u.username, gs.game_type
-		ORDER BY best_score DESC
-		LIMIT ?
-	`
+	var query string
 
-	rows, err := db.conn.Query(query, gameType, limit)
+	if db.dbType == "postgres" {
+		query = `
+            SELECT 
+                u.username,
+                $2 as game_type,
+                MAX(gs.score) as best_score,
+                AVG(gs.score) as avg_score,
+                COUNT(gs.id) as games_played,
+                MAX(gs.played_at) as last_played
+            FROM users u
+            JOIN game_scores gs ON u.id = gs.user_id
+            WHERE gs.game_type = $2
+            GROUP BY u.id, u.username
+            ORDER BY best_score DESC
+            LIMIT $1
+        `
+	} else {
+		query = `
+            SELECT 
+                u.username,
+                ? as game_type,
+                MAX(gs.score) as best_score,
+                AVG(CAST(gs.score AS REAL)) as avg_score,
+                COUNT(gs.id) as games_played,
+                MAX(gs.played_at) as last_played
+            FROM users u
+            JOIN game_scores gs ON u.id = gs.user_id
+            WHERE gs.game_type = ?
+            GROUP BY u.id, u.username
+            ORDER BY best_score DESC
+            LIMIT ?
+        `
+	}
+
+	var rows *sql.Rows
+	var err error
+
+	if db.dbType == "postgres" {
+		rows, err = db.conn.Query(query, limit, gameType)
+	} else {
+		rows, err = db.conn.Query(query, gameType, limit)
+	}
+
 	if err != nil {
 		return nil, fmt.Errorf("failed to get leaderboard: %w", err)
 	}
@@ -244,43 +339,17 @@ func (db *DB) GetLeaderboard(gameType string, limit int) ([]LeaderboardEntry, er
 	var entries []LeaderboardEntry
 	for rows.Next() {
 		var entry LeaderboardEntry
-		var lastPlayedStr string // Scan as string first
+		var lastPlayed time.Time
 
 		err := rows.Scan(
 			&entry.Username, &entry.GameType, &entry.BestScore,
-			&entry.AvgScore, &entry.GamesPlayed, &lastPlayedStr,
+			&entry.AvgScore, &entry.GamesPlayed, &lastPlayed,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan leaderboard entry: %w", err)
 		}
 
-		// Parse the date string into time.Time
-		if lastPlayedStr != "" {
-			// Try different SQLite datetime formats
-			formats := []string{
-				"2006-01-02 15:04:05",  // SQLite default format
-				"2006-01-02T15:04:05Z", // ISO format
-				"2006-01-02T15:04:05",  // ISO without timezone
-				time.RFC3339,           // RFC3339 format
-			}
-
-			var parsed bool
-			for _, format := range formats {
-				if t, err := time.Parse(format, lastPlayedStr); err == nil {
-					entry.LastPlayed = t
-					parsed = true
-					break
-				}
-			}
-
-			if !parsed {
-				// If all parsing fails, use current time as fallback
-				entry.LastPlayed = time.Now()
-			}
-		} else {
-			entry.LastPlayed = time.Now()
-		}
-
+		entry.LastPlayed = lastPlayed
 		entries = append(entries, entry)
 	}
 
