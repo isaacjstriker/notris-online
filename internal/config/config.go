@@ -3,6 +3,9 @@ package config
 import (
 	"os"
 	"strconv"
+	"fmt"
+	"crypto/rand"
+	"encoding/base64"
 
 	"github.com/joho/godotenv"
 )
@@ -23,12 +26,19 @@ func Load() (*Config, error) {
 	// Try to load .env file (it's okay if it doesn't exist)
 	_ = godotenv.Load()
 
+	jwtSecret := os.Getenv("JWT_SECRET")
+	if jwtSecret == "" {
+		jwtSecret = generateSecureJWT()
+		fmt.Println("🔐 Generated new JWT secret. Add this to your .env file:")
+		fmt.Printf("JWT_SECRET=%s\n", jwtSecret)
+	}
+
     config := &Config{
         // Use simple fallbacks, let .env provide the real values
         DatabaseURL:  getEnv("DATABASE_URL", "devware.db"), // Fallback to SQLite
         AppName:      getEnv("APP_NAME", "Dev Ware"),
         Debug:        getEnvBool("DEBUG", false),
-        JWTSecret:    getEnv("JWT_SECRET", generateDefaultJWT()),
+        JWTSecret:    jwtSecret,
         ServerPort:   getEnvInt("SERVER_PORT", 8080),
         ServerHost:   getEnv("SERVER_HOST", "localhost"),
         SupabaseURL:  getEnv("SUPABASE_URL", ""),
@@ -38,9 +48,15 @@ func Load() (*Config, error) {
 	return config, nil
 }
 
-// Helper function for JWT default
-func generateDefaultJWT() string {
-	return "YkBSq+6EX9RA4hCTevQFAk1A+YBInBP8eCF8Y5iQP2jPNAuXWXtm4uBaZQYLBHzWW3zjKTwi26PXico13lbcDQ=="
+//generateSecureJWT creates a cryptographically secure JWT secret
+func generateSecureJWT() string {
+	bytes := make([]byte, 32)
+	_, err := rand.Read(bytes)
+	if err != nil {
+		fmt.Println("⚠️  CRITICAL: Could not generate secure JWT secret!")
+        os.Exit(1)
+    }
+    return base64.StdEncoding.EncodeToString(bytes)
 }
 
 // getEnv gets an environment variable with a default value
