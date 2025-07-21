@@ -6,10 +6,12 @@ import (
 	"strings"
 
 	"github.com/isaacjstriker/devware/games"
+	"github.com/isaacjstriker/devware/games/tetris"
 	"github.com/isaacjstriker/devware/games/typing"
 	"github.com/isaacjstriker/devware/internal/auth"
 	"github.com/isaacjstriker/devware/internal/config"
 	"github.com/isaacjstriker/devware/internal/database"
+	"github.com/isaacjstriker/devware/internal/types"
 	"github.com/isaacjstriker/devware/ui"
 )
 
@@ -19,9 +21,6 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to load configuration: %v", err)
 	}
-
-	//Test connection to database first
-	testSupabaseConnection()
 
 	// Initialize database connection with fallback
 	db, err := database.ConnectWithFallback(cfg.DatabaseURL)
@@ -59,6 +58,7 @@ func main() {
 		menuItems = append(menuItems,
 			ui.MenuItem{Label: "🎲 Challenge Mode (All Games)", Value: "challenge"},
 			ui.MenuItem{Label: "🎯 Typing Speed Challenge", Value: "typing"},
+			ui.MenuItem{Label: "🧱 Tetris", Value: "block-stacking"},
 		)
 
 		// User-specific items
@@ -100,6 +100,12 @@ func main() {
 				typingGame.Play(db, authManager)
 			}
 
+		case "block-stacking":
+			tetrisGame := tetris.NewTetris()
+			if authManager != nil {
+				tetrisGame.Play(db, authManager)
+			}
+
 		case "auth":
 			if authManager != nil {
 				authManager.ShowAuthMenu()
@@ -137,6 +143,7 @@ func main() {
 		case "challenge":
 			gameRegistry := games.NewGameRegistry()
 			gameRegistry.RegisterGame(typing.NewTypingGame())
+			gameRegistry.RegisterGame(tetris.NewTetris())
 			// Register other games as you create them
 
 			challengeMode := games.NewChallengeMode(gameRegistry)
@@ -183,83 +190,135 @@ func showUserProfile(db *database.DB, authManager *auth.CLIAuth) {
 }
 
 func showLeaderboard(db *database.DB) {
-	// For now, we'll show typing game by default
-	// Later we can expand this to show a game selection menu
-
-	availableGames := map[string]string{
-		"typing": "🎯 Typing Speed Challenge",
-		// Add more games here as you create them:
-		// "memory": "🧠 Memory Challenge",
-		// "math":   "🔢 Math Speed Test",
-	}
-
-	// For now, let's show typing game leaderboard
-	// In the future, we'll add a submenu here
-	gameType := "typing"
-	gameName := availableGames[gameType]
-
-	fmt.Println("\n" + strings.Repeat("🏆", 25))
-	fmt.Printf("         LEADERBOARDS - %s\n", gameName)
+	fmt.Println(strings.Repeat("🏆", 25))
+	fmt.Println("         LEADERBOARDS")
 	fmt.Println(strings.Repeat("🏆", 25))
 
-	// Get leaderboard data
-	entries, err := db.GetLeaderboard(gameType, 15) // Show top 15
+	// Game selection menu
+	fmt.Println("\nSelect game to view leaderboard:")
+	fmt.Println("1. 🎯 Typing Speed Challenge")
+	fmt.Println("2. 🧱 Tetris")
+	fmt.Println("3. 📊 All Games Combined")
+	fmt.Print("\nEnter choice (1-3): ")
+
+	var choice string
+	fmt.Scanln(&choice)
+
+	var gameType string
+	var gameTitle string
+
+	switch choice {
+	case "1":
+		gameType = "typing"
+		gameTitle = "🎯 Typing Speed Challenge"
+	case "2":
+		gameType = "tetris"
+		gameTitle = "🧱 Tetris"
+	case "3":
+		showAllGamesLeaderboard(db)
+		return
+	default:
+		fmt.Println("Invalid choice, showing typing leaderboard...")
+		gameType = "typing"
+		gameTitle = "🎯 Typing Speed Challenge"
+	}
+
+	showGameLeaderboard(db, gameType, gameTitle)
+}
+
+func showGameLeaderboard(db *database.DB, gameType, gameTitle string) {
+	fmt.Printf("\n%s\n", gameTitle)
+	fmt.Println(strings.Repeat("═", 60))
+
+	entries, err := db.GetLeaderboard(gameType, 15)
 	if err != nil {
 		fmt.Printf("❌ Error loading leaderboard: %v\n", err)
-		fmt.Println("\nPress Enter to continue...")
-		fmt.Scanln()
 		return
 	}
 
 	if len(entries) == 0 {
-		fmt.Println("\n📝 No scores recorded yet!")
-		fmt.Println("🎮 Be the first to play and set a record!")
-		fmt.Println("💡 Log in and play some games to see your scores here.")
-	} else {
-		fmt.Printf("\n📊 Showing Top %d Players:\n", len(entries))
-		fmt.Println(strings.Repeat("=", 70))
-		fmt.Printf("%-4s | %-15s | %-10s | %-6s | %-8s | %s\n",
-			"Rank", "Player", "Best Score", "Games", "Avg", "Last Played")
-		fmt.Println(strings.Repeat("-", 70))
-
-		for i, entry := range entries {
-			// Format the last played date
-			lastPlayed := entry.LastPlayed.Format("Jan 02")
-
-			// Add medal emojis for top 3
-			rankDisplay := fmt.Sprintf("%d", i+1)
-			switch i {
-			case 0:
-				rankDisplay = "🥇"
-			case 1:
-				rankDisplay = "🥈"
-			case 2:
-				rankDisplay = "🥉"
-			}
-
-			fmt.Printf("%-4s | %-15s | %-10d | %-6d | %-8.1f | %s\n",
-				rankDisplay,
-				truncateString(entry.Username, 15),
-				entry.BestScore,
-				entry.GamesPlayed,
-				entry.AvgScore,
-				lastPlayed)
-		}
-
-		fmt.Println(strings.Repeat("=", 70))
-
-		// Show some interesting stats
-		showLeaderboardStats(entries)
+		fmt.Println("📝 No scores recorded yet! Be the first to play!")
+		return
 	}
 
-	fmt.Println("\n💡 Future: We'll add a menu to select different game leaderboards!")
-	fmt.Println("🎮 For now, only Typing Speed Challenge is available.")
-	fmt.Println("\nPress Enter to continue...")
-	fmt.Scanln()
+	// Display headers based on game type
+	if gameType == "tetris" {
+		fmt.Printf("%-4s %-15s %-8s %-8s %-8s %-12s\n",
+			"Rank", "Player", "Score", "Lines", "Level", "Last Played")
+	} else {
+		fmt.Printf("%-4s %-15s %-8s %-8s %-8s %-12s\n",
+			"Rank", "Player", "Score", "Avg", "Games", "Last Played")
+	}
+	fmt.Println(strings.Repeat("─", 60))
+
+	for i, entry := range entries {
+		rank := fmt.Sprintf("#%d", i+1)
+		if i < 3 {
+			medals := []string{"🥇", "🥈", "🥉"}
+			rank = medals[i]
+		}
+
+		username := truncateString(entry.Username, 15)
+
+		if gameType == "tetris" {
+			// For Tetris, show lines and level from metadata
+			lines := "N/A"
+			level := "N/A"
+			// You'd parse metadata here if available
+
+			fmt.Printf("%-4s %-15s %-8d %-8s %-8s %-12s\n",
+				rank, username, entry.BestScore, lines, level,
+				entry.LastPlayed.Format("Jan 02"))
+		} else {
+			fmt.Printf("%-4s %-15s %-8d %-8.1f %-8d %-12s\n",
+				rank, username, entry.BestScore, entry.AvgScore, entry.GamesPlayed,
+				entry.LastPlayed.Format("Jan 02"))
+		}
+	}
+
+	showLeaderboardStats(entries, gameType)
+}
+
+func showAllGamesLeaderboard(db *database.DB) {
+	fmt.Println("\n📊 ALL GAMES COMBINED LEADERBOARD")
+	fmt.Println(strings.Repeat("═", 70))
+
+	// This would require a more complex query to combine scores across games
+	// For now, show separate sections
+
+	games := []struct {
+		gameType string
+		title    string
+		emoji    string
+	}{
+		{"typing", "Typing Speed Challenge", "🎯"},
+		{"tetris", "Tetris", "🧱"},
+	}
+
+	for _, game := range games {
+		fmt.Printf("\n%s %s - Top 5\n", game.emoji, game.title)
+		fmt.Println(strings.Repeat("─", 40))
+
+		entries, err := db.GetLeaderboard(game.gameType, 5)
+		if err != nil {
+			fmt.Printf("❌ Error loading %s leaderboard: %v\n", game.title, err)
+			continue
+		}
+
+		if len(entries) == 0 {
+			fmt.Println("   No scores yet!")
+			continue
+		}
+
+		for i, entry := range entries {
+			fmt.Printf("   %d. %s - %d pts\n",
+				i+1, truncateString(entry.Username, 12), entry.BestScore)
+		}
+	}
 }
 
 // Helper function to show interesting leaderboard statistics
-func showLeaderboardStats(entries []database.LeaderboardEntry) {
+func showLeaderboardStats(entries []database.LeaderboardEntry, gameType string) {
 	if len(entries) == 0 {
 		return
 	}

@@ -190,6 +190,8 @@ func (db *DB) CreateTables() error {
 				updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 				FOREIGN KEY (user_id) REFERENCES users (id)
 			)`,
+			`INSERT INTO game_scores (user_id, game_type, score, metadata)
+			VALUES (1, 'tetris', 15000, '{"lines": 50, "level": 5, "game_time": 180.5}')`,
 		}
 	}
 

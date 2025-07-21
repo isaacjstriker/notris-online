@@ -61,60 +61,61 @@ func (db *DB) CreateTestData() error {
 		fmt.Printf("   ✅ Created user: %s (ID: %d)\n", user.username, userID)
 	}
 
-	// Create test scores for typing game
+	// Create test scores for both typing and tetris games
 	testScores := []struct {
 		userID int
 		scores []struct {
+			gameType string
 			score    int
 			metadata map[string]interface{}
 		}
 	}{
 		{userIDs[0], []struct {
+			gameType string
 			score    int
 			metadata map[string]interface{}
 		}{
-			{150, map[string]interface{}{"wpm": 45, "accuracy": 92.5}},
-			{175, map[string]interface{}{"wpm": 52, "accuracy": 94.0}},
-			{200, map[string]interface{}{"wpm": 58, "accuracy": 96.2}},
-			{180, map[string]interface{}{"wpm": 54, "accuracy": 93.8}},
-			{165, map[string]interface{}{"wpm": 48, "accuracy": 95.1}},
+			{"typing", 150, map[string]interface{}{"wpm": 45, "accuracy": 92.5}},
+			{"typing", 175, map[string]interface{}{"wpm": 52, "accuracy": 94.0}},
+			{"tetris", 8500, map[string]interface{}{"lines": 25, "level": 3, "game_time": 120.5}},
+			{"tetris", 12000, map[string]interface{}{"lines": 35, "level": 4, "game_time": 180.2}},
 		}},
 		{userIDs[1], []struct {
+			gameType string
 			score    int
 			metadata map[string]interface{}
 		}{
-			{220, map[string]interface{}{"wpm": 68, "accuracy": 97.2}},
-			{250, map[string]interface{}{"wpm": 74, "accuracy": 98.1}},
-			{275, map[string]interface{}{"wpm": 81, "accuracy": 98.8}},
-			{240, map[string]interface{}{"wpm": 72, "accuracy": 97.5}},
-			{260, map[string]interface{}{"wpm": 76, "accuracy": 98.3}},
+			{"typing", 220, map[string]interface{}{"wpm": 68, "accuracy": 97.2}},
+			{"tetris", 25000, map[string]interface{}{"lines": 60, "level": 7, "game_time": 300.8}},
+			{"tetris", 18500, map[string]interface{}{"lines": 45, "level": 5, "game_time": 210.1}},
 		}},
 		{userIDs[2], []struct {
+			gameType string
 			score    int
 			metadata map[string]interface{}
 		}{
-			{180, map[string]interface{}{"wpm": 55, "accuracy": 94.2}},
-			{190, map[string]interface{}{"wpm": 58, "accuracy": 95.0}},
-			{185, map[string]interface{}{"wpm": 56, "accuracy": 94.8}},
-			{200, map[string]interface{}{"wpm": 61, "accuracy": 96.1}},
-			{195, map[string]interface{}{"wpm": 59, "accuracy": 95.5}},
+			{"typing", 180, map[string]interface{}{"wpm": 55, "accuracy": 94.2}},
+			{"typing", 190, map[string]interface{}{"wpm": 58, "accuracy": 95.0}},
+			{"tetris", 9000, map[string]interface{}{"lines": 30, "level": 4, "game_time": 150.7}},
+			{"tetris", 13000, map[string]interface{}{"lines": 40, "level": 5, "game_time": 200.3}},
 		}},
 		{userIDs[3], []struct {
+			gameType string
 			score    int
 			metadata map[string]interface{}
 		}{
-			{310, map[string]interface{}{"wpm": 92, "accuracy": 99.2}},
-			{295, map[string]interface{}{"wpm": 88, "accuracy": 98.9}},
-			{320, map[string]interface{}{"wpm": 95, "accuracy": 99.5}},
-			{305, map[string]interface{}{"wpm": 91, "accuracy": 99.1}},
+			{"typing", 310, map[string]interface{}{"wpm": 92, "accuracy": 99.2}},
+			{"tetris", 27000, map[string]interface{}{"lines": 70, "level": 8, "game_time": 360.9}},
+			{"tetris", 22000, map[string]interface{}{"lines": 55, "level": 6, "game_time": 250.4}},
 		}},
 		{userIDs[4], []struct {
+			gameType string
 			score    int
 			metadata map[string]interface{}
 		}{
-			{140, map[string]interface{}{"wpm": 42, "accuracy": 91.8}},
-			{155, map[string]interface{}{"wpm": 46, "accuracy": 93.2}},
-			{160, map[string]interface{}{"wpm": 48, "accuracy": 93.8}},
+			{"typing", 140, map[string]interface{}{"wpm": 42, "accuracy": 91.8}},
+			{"tetris", 7000, map[string]interface{}{"lines": 20, "level": 2, "game_time": 100.1}},
+			{"tetris", 9500, map[string]interface{}{"lines": 28, "level": 3, "game_time": 140.6}},
 		}},
 	}
 
@@ -132,8 +133,8 @@ func (db *DB) CreateTestData() error {
 
 				_, err = db.conn.Exec(
 					"INSERT INTO game_scores (user_id, game_type, score, metadata, played_at) VALUES ($1, $2, $3, $4, $5)",
-					userScore.userID, "typing", scoreData.score, metadataValue,
-					time.Now().Add(-time.Duration(len(userScore.scores)-j)*24*time.Hour),
+					userScore.userID, scoreData.gameType, scoreData.score, metadataValue,
+					time.Now().Add(-time.Duration(len(userScore.scores)-j)*12*time.Hour),
 				)
 			} else {
 				// SQLite uses TEXT for JSON
@@ -145,10 +146,11 @@ func (db *DB) CreateTestData() error {
 
 				_, err = db.conn.Exec(
 					"INSERT INTO game_scores (user_id, game_type, score, metadata, played_at) VALUES (?, ?, ?, ?, ?)",
-					userScore.userID, "typing", scoreData.score, metadataValue,
-					time.Now().Add(-time.Duration(len(userScore.scores)-j)*24*time.Hour),
+					userScore.userID, scoreData.gameType, scoreData.score, metadataValue,
+					time.Now().Add(-time.Duration(len(userScore.scores)-j)*12*time.Hour),
 				)
 			}
+
 		}
 		fmt.Printf("   📊 Created %d scores for user ID %d\n", len(userScore.scores), userScore.userID)
 	}

@@ -43,16 +43,16 @@ func (tg *TypingGame) IsAvailable() bool {
 	return err == nil
 }
 
-func (tg *TypingGame) Play(db interface{}, authManager interface{}) *types.GameResult {
+func (tg *TypingGame) Play(db *database.DB, authManager *auth.CLIAuth) *types.GameResult {
 	// Cast the interfaces back to their actual types
 	var realDB *database.DB
 	var realAuth *auth.CLIAuth
 
 	if db != nil {
-		realDB = db.(*database.DB)
+		realDB = db
 	}
 	if authManager != nil {
-		realAuth = authManager.(*auth.CLIAuth)
+		realAuth = authManager
 	}
 
 	// Now use realDB and realAuth in your existing logic
@@ -214,7 +214,7 @@ func (tg *TypingGame) registerGoFunctions(L *lua.LState) {
 }
 
 // luaTableToGameStats converts a Lua table to a GameStats struct
-func (tg *TypingGame) luaTableToGameStats(L *lua.LState, lv lua.LValue) (*types.GameStats, error) {
+func (tg *TypingGame) luaTableToGameStats(_ *lua.LState, lv lua.LValue) (*types.GameStats, error) {
 	table, ok := lv.(*lua.LTable)
 	if !ok {
 		return nil, fmt.Errorf("expected Lua table, got %T", lv)

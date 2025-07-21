@@ -4,6 +4,10 @@ import (
 	"math/rand"
 	"time"
 
+	"github.com/isaacjstriker/devware/games/tetris"
+	"github.com/isaacjstriker/devware/games/typing"
+	"github.com/isaacjstriker/devware/internal/auth"
+	"github.com/isaacjstriker/devware/internal/database"
 	"github.com/isaacjstriker/devware/internal/types"
 )
 
@@ -49,4 +53,26 @@ func (gr *GameRegistry) GetRandomOrder() []types.Game {
 // GetGameCount returns number of available games
 func (gr *GameRegistry) GetGameCount() int {
 	return len(gr.GetAllGames())
+}
+
+// Game interface that all games should implement
+type Game interface {
+	Play(db *database.DB, authManager *auth.CLIAuth) *types.GameResult
+	GetName() string
+	GetDescription() string
+}
+
+// Registry of available games
+var Games = map[string]func() Game{
+	"typing": func() Game { return typing.NewTypingGame() },
+	"tetris": func() Game { return tetris.NewTetris() },
+}
+
+// GetGameList returns a list of available games
+func GetGameList() []string {
+	var games []string
+	for name := range Games {
+		games = append(games, name)
+	}
+	return games
 }
