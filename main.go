@@ -11,7 +11,6 @@ import (
 	"github.com/isaacjstriker/devware/internal/auth"
 	"github.com/isaacjstriker/devware/internal/config"
 	"github.com/isaacjstriker/devware/internal/database"
-	"github.com/isaacjstriker/devware/internal/types"
 	"github.com/isaacjstriker/devware/ui"
 )
 

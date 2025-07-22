@@ -6,8 +6,6 @@ import (
 
 	"github.com/isaacjstriker/devware/games/tetris"
 	"github.com/isaacjstriker/devware/games/typing"
-	"github.com/isaacjstriker/devware/internal/auth"
-	"github.com/isaacjstriker/devware/internal/database"
 	"github.com/isaacjstriker/devware/internal/types"
 )
 
@@ -55,17 +53,10 @@ func (gr *GameRegistry) GetGameCount() int {
 	return len(gr.GetAllGames())
 }
 
-// Game interface that all games should implement
-type Game interface {
-	Play(db *database.DB, authManager *auth.CLIAuth) *types.GameResult
-	GetName() string
-	GetDescription() string
-}
-
 // Registry of available games
-var Games = map[string]func() Game{
-	"typing": func() Game { return typing.NewTypingGame() },
-	"tetris": func() Game { return tetris.NewTetris() },
+var Games = map[string]func() types.Game{
+	"typing": func() types.Game { return typing.NewTypingGame() },
+	"tetris": func() types.Game { return tetris.NewTetris() },
 }
 
 // GetGameList returns a list of available games

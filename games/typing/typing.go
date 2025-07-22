@@ -43,16 +43,37 @@ func (tg *TypingGame) IsAvailable() bool {
 	return err == nil
 }
 
-func (tg *TypingGame) Play(db *database.DB, authManager *auth.CLIAuth) *types.GameResult {
-	// Cast the interfaces back to their actual types
+func (tg *TypingGame) Play(db interface{}, authManager interface{}) *types.GameResult {
+	// Type assert the interfaces to the specific types you need
 	var realDB *database.DB
 	var realAuth *auth.CLIAuth
 
 	if db != nil {
-		realDB = db
+		var ok bool
+		realDB, ok = db.(*database.DB)
+		if !ok {
+			return &types.GameResult{
+				GameName: tg.GetName(),
+				Score:    0,
+				Duration: 0,
+				Accuracy: 0,
+				Perfect:  false,
+			}
+		}
 	}
+
 	if authManager != nil {
-		realAuth = authManager
+		var ok bool
+		realAuth, ok = authManager.(*auth.CLIAuth)
+		if !ok {
+			return &types.GameResult{
+				GameName: tg.GetName(),
+				Score:    0,
+				Duration: 0,
+				Accuracy: 0,
+				Perfect:  false,
+			}
+		}
 	}
 
 	// Now use realDB and realAuth in your existing logic

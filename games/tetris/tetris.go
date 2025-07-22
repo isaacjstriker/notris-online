@@ -139,7 +139,46 @@ func (t *Tetris) spawnNextPiece() {
 // func (t *Tetris) Play(db *database.DB, authManager *auth.CLIAuth) *types.GameResult
 
 // Play starts the Tetris game
-func (t *Tetris) Play(db *database.DB, authManager *auth.CLIAuth) *types.GameResult {
+func (t *Tetris) Play(db interface{}, authManager interface{}) *types.GameResult {
+	var realDB *database.DB
+	var realAuth *auth.CLIAuth
+
+	if db != nil {
+		var ok bool
+		realDB, ok = db.(*database.DB)
+		if !ok {
+			return &types.GameResult{
+				GameName: "Tetris",
+				Score:    0,
+				Duration: 0,
+				Accuracy: 0,
+				Perfect:  false,
+				Bonus:    0,
+				Metadata: map[string]interface{}{
+					"error": "Invalid database connection",
+				},
+			}
+		}
+	}
+
+	if authManager != nil {
+		var ok bool
+		realAuth, ok = authManager.(*auth.CLIAuth)
+		if !ok {
+			return &types.GameResult{
+				GameName: "Tetris",
+				Score:    0,
+				Duration: 0,
+				Accuracy: 0,
+				Perfect:  false,
+				Bonus:    0,
+				Metadata: map[string]interface{}{
+					"error": "Invalid authentication manager",
+				},
+			}
+		}
+	}
+
 	fmt.Println("🧱 TETRIS - Stack blocks and clear lines!")
 	fmt.Println("Controls: A/D = Move, S = Soft drop, W = Rotate, Q = Quit")
 	fmt.Println("Press any key to start...")
@@ -153,10 +192,11 @@ func (t *Tetris) Play(db *database.DB, authManager *auth.CLIAuth) *types.GameRes
 
 		// Handle input (simplified for CLI)
 		if t.handleInput() {
-			break // Quit
+			break // User quit
 		}
 
-		time.Sleep(50 * time.Millisecond) // Game loop delay
+		// Game loop delay
+		time.Sleep(50 * time.Millisecond)
 	}
 
 	gameTime := time.Since(startTime)
@@ -164,40 +204,53 @@ func (t *Tetris) Play(db *database.DB, authManager *auth.CLIAuth) *types.GameRes
 	fmt.Println("\n🎮 GAME OVER!")
 	fmt.Printf("📊 Final Score: %d\n", t.score)
 	fmt.Printf("📏 Lines Cleared: %d\n", t.lines)
-	fmt.Printf("⏱️  Game Time: %v\n", gameTime.Round(time.Second))
-	fmt.Printf("🏆 Level Reached: %d\n", t.level)
 
 	// Calculate final score with bonuses
 	finalScore := t.calculateFinalScore(gameTime)
-	fmt.Printf("🎯 Final Score (with bonuses): %d\n", finalScore)
 
-	// Save score if user is logged in
-	if authManager != nil && authManager.GetSession().IsLoggedIn() {
-		session := authManager.GetSession().GetCurrentSession()
-
-		metadata := map[string]interface{}{
-			"lines":      t.lines,
-			"level":      t.level,
-			"game_time":  gameTime.Seconds(),
-			"base_score": t.score,
-		}
-
-		err := db.SubmitScore(session.UserID, "tetris", finalScore, metadata)
-		if err != nil {
-			fmt.Printf("❌ Error saving score: %v\n", err)
-		} else {
-			fmt.Println("✅ Score saved to leaderboard!")
-		}
-	} else {
-		fmt.Println("💡 Log in to save your score to the leaderboard!")
+	// Calculate accuracy based on lines cleared vs time played
+	accuracy := float64(t.lines) / gameTime.Minutes() * 10 // rough accuracy metric
+	if accuracy > 100 {
+		accuracy = 100
 	}
-    fmt.Scanln()
 
-    return &types.GameResult{}
+	// Check if it's a perfect game (high score with good efficiency)
+	perfect := t.lines >= 40 && accuracy >= 80
+
+	if realAuth != nil && realAuth.GetSession().IsLoggedIn() {
+		session := realAuth.GetSession().GetCurrentSession()
+		if session != nil && realDB != nil {
+			// Create additional data for Tetris-specific stats
+			additionalData := map[string]interface{}{
+				"lines":     t.lines,
+				"level":     t.level,
+				"game_time": gameTime.Seconds(),
+			}
+
+			err := realDB.SaveGameScore(session.UserID, "tetris", finalScore, additionalData)
+			if err != nil {
+				fmt.Printf("Failed to save game score: %v\n", err)
+			}
+		}
+	}
+
+	return &types.GameResult{
+		GameName: "Tetris",
+		Score:    finalScore,
+		Duration: gameTime.Seconds(),
+		Accuracy: accuracy,
+		Perfect:  perfect,
+		Bonus:    finalScore - t.score, // difference between final and base score
+		Metadata: map[string]interface{}{
+			"lines":       t.lines,
+			"level":       t.level,
+			"base_score":  t.score,
+			"time_bonus":  int(gameTime.Minutes()) * 50,
+			"level_bonus": (t.level - 1) * 100,
+		},
+	}
 }
-	
 
-// update handles game logic updates
 func (t *Tetris) update() {
 	// Drop piece automatically based on level
 	if time.Since(t.dropTimer) > t.dropInterval {
@@ -212,6 +265,10 @@ func (t *Tetris) update() {
 
 // render displays the game state
 func (t *Tetris) render() {
+	if t.currentPiece == nil {
+		return
+	}
+
 	fmt.Print("\033[2J\033[H")
 
 	fmt.Printf("🧱 TETRIS | Score: %d | Lines: %d | Level: %d\n", t.score, t.lines, t.level)
@@ -254,7 +311,7 @@ func (t *Tetris) render() {
 		fmt.Print("║")
 
 		// Show next piece preview on the right
-		if i < 4 && t.nextPiece != nil {
+		if i < 4 && t.nextPiece != nil && len(t.nextPiece.shape) > 0 {
 			if i == 0 {
 				fmt.Print("  Next:")
 			}
@@ -465,4 +522,13 @@ func (t *Tetris) GetName() string {
 // GetDescription returns the game description
 func (t *Tetris) GetDescription() string {
 	return "🧱 Classic block-stacking puzzle game. Clear lines by filling rows completely!"
+}
+
+// GetDifficulty returns the current difficulty level of the Tetris game
+func (t *Tetris) GetDifficulty() int {
+	return t.level
+}
+
+func (t *Tetris) IsAvailable() bool {
+	return true
 }
