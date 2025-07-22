@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eiannone/keyboard" // Add this import
 	"github.com/isaacjstriker/devware/internal/auth"
 	"github.com/isaacjstriker/devware/internal/database"
 	"github.com/isaacjstriker/devware/internal/types"
@@ -136,8 +137,6 @@ func (t *Tetris) spawnNextPiece() {
 	}
 }
 
-// func (t *Tetris) Play(db *database.DB, authManager *auth.CLIAuth) *types.GameResult
-
 // Play starts the Tetris game
 func (t *Tetris) Play(db interface{}, authManager interface{}) *types.GameResult {
 	var realDB *database.DB
@@ -182,22 +181,55 @@ func (t *Tetris) Play(db interface{}, authManager interface{}) *types.GameResult
 	fmt.Println("🧱 TETRIS - Stack blocks and clear lines!")
 	fmt.Println("Controls: A/D = Move, S = Soft drop, W = Rotate, Q = Quit")
 	fmt.Println("Press any key to start...")
-	fmt.Scanln()
 
+	// Initialize keyboard for input
+	if err := keyboard.Open(); err != nil {
+		fmt.Printf("Failed to initialize keyboard: %v\n", err)
+		return &types.GameResult{
+			GameName: "Tetris",
+			Score:    0,
+			Duration: 0,
+			Accuracy: 0,
+			Perfect:  false,
+			Bonus:    0,
+			Metadata: map[string]interface{}{
+				"error": "Failed to initialize keyboard input",
+			},
+		}
+	}
+	defer keyboard.Close()
+
+	fmt.Scanln()
 	startTime := time.Now()
 
-	for !t.gameOver {
-		t.update()
-		t.render()
+	// Create a channel for input handling
+	inputChan := make(chan bool, 1)
+	quitChan := make(chan bool, 1)
 
-		// Handle input (simplified for CLI)
-		if t.handleInput() {
-			break // User quit
+	// Start input handler in a goroutine
+	go t.inputHandler(inputChan, quitChan)
+
+	gameLoop:
+		for !t.gameOver {
+			t.update()
+			t.render()
+	
+			// Check for quit signal from input handler
+			select {
+			case quit := <-quitChan:
+				if quit {
+					break gameLoop
+				}
+			default:
+				// Continue if no quit signal
+			}
+	
+			// Game loop delay
+			time.Sleep(50 * time.Millisecond)
 		}
 
-		// Game loop delay
-		time.Sleep(50 * time.Millisecond)
-	}
+	// Signal input handler to stop
+	close(inputChan)
 
 	gameTime := time.Since(startTime)
 
@@ -338,27 +370,45 @@ func (t *Tetris) render() {
 	fmt.Println("Controls: A/D=Move, S=Down, W=Rotate, Q=Quit")
 }
 
-// handleInput processes user input (simplified for CLI)
-func (t *Tetris) handleInput() bool {
-	// TODO: Implement actual non-blocking keyboard input
-	// For now, keeping the simulation but this needs real input handling
-	// You might want to use a library like "github.com/eiannone/keyboard"
+// inputHandler runs in a separate goroutine to handle input
+func (t *Tetris) inputHandler(inputChan <-chan bool, quitChan chan<- bool) {
+	for {
+		select {
+		case <-inputChan:
+			return // Stop input handler
+		default:
+			char, key, err := keyboard.GetKey()
+			if err != nil {
+				time.Sleep(10 * time.Millisecond) // Small delay to prevent busy waiting
+				continue
+			}
 
-	if rand.Float32() < 0.1 {
-		action := rand.Intn(4)
-		switch action {
-		case 0:
-			t.movePiece(-1, 0)
-		case 1:
-			t.movePiece(1, 0)
-		case 2:
-			t.rotatePiece()
-		case 3:
-			t.movePiece(0, 1)
+			switch {
+			case char == 'q' || char == 'Q':
+				quitChan <- true
+				return
+			case char == 'a' || char == 'A':
+				t.movePiece(-1, 0)
+			case char == 'd' || char == 'D':
+				t.movePiece(1, 0)
+			case char == 's' || char == 'S':
+				t.movePiece(0, 1)
+			case char == 'w' || char == 'W':
+				t.rotatePiece()
+			case key == keyboard.KeyArrowLeft:
+				t.movePiece(-1, 0)
+			case key == keyboard.KeyArrowRight:
+				t.movePiece(1, 0)
+			case key == keyboard.KeyArrowDown:
+				t.movePiece(0, 1)
+			case key == keyboard.KeyArrowUp:
+				t.rotatePiece()
+			case key == keyboard.KeyEsc:
+				quitChan <- true
+				return
+			}
 		}
 	}
-
-	return false
 }
 
 // movePiece attempts to move the current piece
