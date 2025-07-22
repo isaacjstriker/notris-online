@@ -38,14 +38,14 @@ func main() {
 		fmt.Printf("ℹ️  Test data: %v\n", err)
 	}
 
-	fmt.Println("✅ Database connected and tables verified.")
+	fmt.Println("[OK] Database connected and tables verified.")
 
 	var authManager *auth.CLIAuth
 
 	// Initialize authentication if database is available
 	if db != nil {
 		authManager = auth.NewCLIAuth(db)
-		fmt.Println("🔐 Authentication system initialized.")
+		fmt.Println("[AUTH] Authentication system initialized.")
 	}
 
 	// Main application loop
@@ -53,14 +53,7 @@ func main() {
 		// Build menu items step by step
 		var menuItems []ui.MenuItem
 
-		// Always available items
-		menuItems = append(menuItems,
-			ui.MenuItem{Label: "🎲 Challenge Mode (All Games)", Value: "challenge"},
-			ui.MenuItem{Label: "🎯 Typing Speed Challenge", Value: "typing"},
-			ui.MenuItem{Label: "🧱 Tetris", Value: "block-stacking"},
-		)
-
-		// User-specific items
+		// User-specific items when logged in
 		if authManager != nil && authManager.GetSession().IsLoggedIn() {
 			session := authManager.GetSession().GetCurrentSession()
 			userDisplayName := "User"
@@ -68,24 +61,35 @@ func main() {
 				userDisplayName = session.Username
 			}
 
-			menuItems = []ui.MenuItem{
-				{Label: fmt.Sprintf("👤 %s", userDisplayName), Value: "user_info"},
-				{Label: "🎲 Challenge Mode (All Games)", Value: "challenge"},
-				{Label: "🎯 Typing Speed Challenge", Value: "typing"},
-				{Label: "🏆 View Leaderboards", Value: "leaderboard"},
-				{Label: "🔄 Authentication", Value: "auth"},
-			}
+			menuItems = append(menuItems,
+				ui.MenuItem{Label: fmt.Sprintf("[U] %s", userDisplayName), Value: "user_info"},
+			)
+		}
+
+		// Always available game items
+		menuItems = append(menuItems,
+			ui.MenuItem{Label: "[*] Challenge Mode (All Games)", Value: "challenge"},
+			ui.MenuItem{Label: "[T] Typing Speed Challenge", Value: "typing"},
+			ui.MenuItem{Label: "[B] Tetris", Value: "block-stacking"},
+		)
+
+		// Auth and leaderboard items
+		if authManager != nil && authManager.GetSession().IsLoggedIn() {
+			menuItems = append(menuItems,
+				ui.MenuItem{Label: "[L] View Leaderboards", Value: "leaderboard"},
+				ui.MenuItem{Label: "[A] Authentication", Value: "auth"},
+			)
 		} else if authManager != nil {
 			menuItems = append(menuItems,
-				ui.MenuItem{Label: "👤 Login / Register", Value: "auth"},
-				ui.MenuItem{Label: "🏆 View Leaderboards", Value: "leaderboard"},
+				ui.MenuItem{Label: "[A] Login / Register", Value: "auth"},
+				ui.MenuItem{Label: "[L] View Leaderboards", Value: "leaderboard"},
 			)
 		}
 
 		// Always at the end
 		menuItems = append(menuItems,
-			ui.MenuItem{Label: "⚙️  Settings", Value: "settings"},
-			ui.MenuItem{Label: "❌ Exit", Value: "exit"},
+			ui.MenuItem{Label: "[S] Settings", Value: "settings"},
+			ui.MenuItem{Label: "[X] Exit", Value: "exit"},
 		)
 
 		// Create and show menu
@@ -132,10 +136,10 @@ func main() {
 			showSettings(cfg)
 
 		case "exit":
-			fmt.Println("\n👋 Thanks for playing Dev Ware!")
-			fmt.Println("💝 Come back soon for more games!")
+			fmt.Println("\nThanks for playing Dev Ware!")
+			fmt.Println("Come back soon for more games!")
 			if authManager != nil && authManager.GetSession().IsLoggedIn() {
-				fmt.Printf("🔐 %s will remain logged in for next time.\n", authManager.GetSession().GetCurrentSession().Username)
+				fmt.Printf("[AUTH] %s will remain logged in for next time.\n", authManager.GetSession().GetCurrentSession().Username)
 			}
 			return
 
@@ -155,9 +159,9 @@ func main() {
 		// Debug: Show login status
 		if authManager != nil && authManager.GetSession().IsLoggedIn() {
 			session := authManager.GetSession().GetCurrentSession()
-			fmt.Printf("🔐 Debug: Logged in as %s (ID: %d)\n", session.Username, session.UserID)
+			fmt.Printf("[DEBUG] Logged in as %s (ID: %d)\n", session.Username, session.UserID)
 		} else {
-			fmt.Println("❌ Debug: Not logged in")
+			fmt.Println("[DEBUG] Not logged in")
 		}
 	}
 }
@@ -169,18 +173,18 @@ func showUserProfile(db *database.DB, authManager *auth.CLIAuth) {
 	}
 
 	fmt.Println("\n" + strings.Repeat("=", 60))
-	fmt.Printf("👤 User Profile: %s\n", session.Username)
+	fmt.Printf("[USER] User Profile: %s\n", session.Username)
 	fmt.Println(strings.Repeat("=", 60))
-	fmt.Printf("📧 Email: %s\n", session.Email)
-	fmt.Printf("🆔 User ID: %d\n", session.UserID)
+	fmt.Printf("Email: %s\n", session.Email)
+	fmt.Printf("User ID: %d\n", session.UserID)
 
 	// Get typing game stats
 	if stats, err := db.GetUserStats(session.UserID, "typing"); err == nil {
-		fmt.Println("\n🎯 Typing Game Statistics:")
-		fmt.Printf("   🏆 Best Score: %d points\n", stats.BestScore)
-		fmt.Printf("   🎮 Games Played: %d\n", stats.GamesPlayed)
-		fmt.Printf("   📊 Average Score: %.1f points\n", stats.AvgScore)
-		fmt.Printf("   ⏰ Last Played: %s\n", stats.LastPlayed.Format("2006-01-02 15:04"))
+		fmt.Println("\n[TYPING] Typing Game Statistics:")
+		fmt.Printf("   Best Score: %d points\n", stats.BestScore)
+		fmt.Printf("   Games Played: %d\n", stats.GamesPlayed)
+		fmt.Printf("   Average Score: %.1f points\n", stats.AvgScore)
+		fmt.Printf("   Last Played: %s\n", stats.LastPlayed.Format("2006-01-02 15:04"))
 	}
 
 	fmt.Println(strings.Repeat("=", 60))
@@ -189,15 +193,14 @@ func showUserProfile(db *database.DB, authManager *auth.CLIAuth) {
 }
 
 func showLeaderboard(db *database.DB) {
-	fmt.Println(strings.Repeat("🏆", 25))
+	fmt.Println(strings.Repeat("*", 50))
 	fmt.Println("         LEADERBOARDS")
-	fmt.Println(strings.Repeat("🏆", 25))
+	fmt.Println(strings.Repeat("*", 50))
 
-	// Game selection menu
 	fmt.Println("\nSelect game to view leaderboard:")
-	fmt.Println("1. 🎯 Typing Speed Challenge")
-	fmt.Println("2. 🧱 Tetris")
-	fmt.Println("3. 📊 All Games Combined")
+	fmt.Println("1. [T] Typing Speed Challenge")
+	fmt.Println("2. [B] Tetris")
+	fmt.Println("3. [A] All Games Combined")
 	fmt.Print("\nEnter choice (1-3): ")
 
 	var choice string
@@ -209,17 +212,17 @@ func showLeaderboard(db *database.DB) {
 	switch choice {
 	case "1":
 		gameType = "typing"
-		gameTitle = "🎯 Typing Speed Challenge"
+		gameTitle = "[T] Typing Speed Challenge"
 	case "2":
 		gameType = "tetris"
-		gameTitle = "🧱 Tetris"
+		gameTitle = "[B] Tetris"
 	case "3":
 		showAllGamesLeaderboard(db)
 		return
 	default:
 		fmt.Println("Invalid choice, showing typing leaderboard...")
 		gameType = "typing"
-		gameTitle = "🎯 Typing Speed Challenge"
+		gameTitle = "[T] Typing Speed Challenge"
 	}
 
 	showGameLeaderboard(db, gameType, gameTitle)
@@ -236,7 +239,7 @@ func showGameLeaderboard(db *database.DB, gameType, gameTitle string) {
 	}
 
 	if len(entries) == 0 {
-		fmt.Println("📝 No scores recorded yet! Be the first to play!")
+		fmt.Println("[INFO] No scores recorded yet! Be the first to play!")
 		return
 	}
 
@@ -250,10 +253,11 @@ func showGameLeaderboard(db *database.DB, gameType, gameTitle string) {
 	}
 	fmt.Println(strings.Repeat("─", 60))
 
+	// Replace rank medals:
 	for i, entry := range entries {
 		rank := fmt.Sprintf("#%d", i+1)
 		if i < 3 {
-			medals := []string{"🥇", "🥈", "🥉"}
+			medals := []string{"[1st]", "[2nd]", "[3rd]"}
 			rank = medals[i]
 		}
 
@@ -332,13 +336,13 @@ func showLeaderboardStats(entries []database.LeaderboardEntry, gameType string) 
 
 	avgBestScore := float64(totalScore) / float64(len(entries))
 
-	fmt.Println("\n📈 Community Stats:")
-	fmt.Printf("   🎮 Total Games Played: %d\n", totalGames)
-	fmt.Printf("   👥 Active Players: %d\n", len(entries))
-	fmt.Printf("   📊 Average Best Score: %.1f\n", avgBestScore)
+	fmt.Println("\n[STATS] Community Stats:")
+	fmt.Printf("   Total Games Played: %d\n", totalGames)
+	fmt.Printf("   Active Players: %d\n", len(entries))
+	fmt.Printf("   Average Best Score: %.1f\n", avgBestScore)
 
 	if len(entries) > 0 {
-		fmt.Printf("   🏆 Highest Score: %d (by %s)\n", entries[0].BestScore, entries[0].Username)
+		fmt.Printf("   Highest Score: %d (by %s)\n", entries[0].BestScore, entries[0].Username)
 	}
 }
 
@@ -351,7 +355,7 @@ func truncateString(s string, maxLen int) string {
 }
 
 func showSettings(cfg *config.Config) {
-	fmt.Println("\n⚙️  SETTINGS")
+	fmt.Println("\n[SETTINGS]")
 	fmt.Println("============")
 	fmt.Printf("App Name: %s\n", cfg.AppName)
 	fmt.Printf("Debug Mode: %t\n", cfg.Debug)
@@ -364,7 +368,7 @@ func showSettings(cfg *config.Config) {
 
 	fmt.Printf("Server: %s:%d\n", cfg.ServerHost, cfg.ServerPort)
 
-	fmt.Println("\n💡 Tip: Create a .env file to customize these settings")
+	fmt.Println("\n[TIP] Create a .env file to customize these settings")
 	fmt.Println("(Copy .env.example and modify as needed)")
 
 	fmt.Println("\nPress Enter to continue...")

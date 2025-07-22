@@ -79,7 +79,7 @@ func (tg *TypingGame) Play(db interface{}, authManager interface{}) *types.GameR
 	// Now use realDB and realAuth in your existing logic
 	stats, err := tg.playGame()
 	if err != nil {
-		fmt.Printf("❌ Game error: %v\n", err)
+		fmt.Printf("[ERROR] Game error: %v\n", err)
 		return &types.GameResult{
 			GameName: tg.GetName(),
 			Score:    0,
@@ -125,38 +125,38 @@ func (tg *TypingGame) Play(db interface{}, authManager interface{}) *types.GameR
 
 			err := realDB.SaveGameScore(session.UserID, "typing", result.Score, additionalData)
 			if err != nil {
-				fmt.Printf("⚠️  Warning: Failed to save score: %v\n", err)
+				fmt.Printf("[WARNING] Failed to save score: %v\n", err)
 			} else {
-				fmt.Println("✅ Score saved to database!")
+				fmt.Println("[OK] Score saved to database!")
 			}
 		}
 	}
 
-	fmt.Printf("\n🎯 Final Score: %d\n", result.Score)
+	fmt.Printf("\n[SCORE] Final Score: %d\n", result.Score)
 
 	// Check if user is logged in
 	if realAuth == nil || !realAuth.GetSession().IsLoggedIn() {
-		fmt.Println("⚠️  Not logged in - score won't be saved!")
-		fmt.Println("💡 Log in to save your scores to the leaderboard.")
+		fmt.Println("[WARNING] Not logged in - score won't be saved!")
+		fmt.Println("[INFO] Log in to save your scores to the leaderboard.")
 		return result
 	}
 
 	session := realAuth.GetSession().GetCurrentSession()
 	if session == nil {
-		fmt.Println("❌ No valid session - score won't be saved!")
+		fmt.Println("[ERROR] No valid session - score won't be saved!")
 		return result
 	}
 
-	fmt.Printf("💾 Attempting to save score for user: %s (ID: %d)\n", session.Username, session.UserID)
+	fmt.Printf("[SAVE] Attempting to save score for user: %s (ID: %d)\n", session.Username, session.UserID)
 
 	// Submit score to database
 	err = realDB.SubmitScore(session.UserID, "typing", result.Score, nil)
 	if err != nil {
-		fmt.Printf("❌ Error saving score: %v\n", err)
+		fmt.Printf("[ERROR] Error saving score: %v\n", err)
 		return result
 	}
 
-	fmt.Println("✅ Score saved successfully!")
+	fmt.Println("[OK] Score saved successfully!")
 
 	return result
 }

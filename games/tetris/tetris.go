@@ -3,6 +3,7 @@ package tetris
 import (
 	"fmt"
 	"math/rand"
+	"os"
 	"strings"
 	"time"
 
@@ -77,7 +78,7 @@ var pieces = [][][]int{
 	},
 }
 
-var pieceColors = []string{"🟦", "🟨", "🟪", "🟩", "🟥", "🟧", "⬜"}
+var pieceColors = []string{"##", "@@", "**", "%%", "&&", "++", "=="}
 
 // NewTetris creates a new Tetris game
 func NewTetris() *Tetris {
@@ -178,7 +179,7 @@ func (t *Tetris) Play(db interface{}, authManager interface{}) *types.GameResult
 		}
 	}
 
-	fmt.Println("🧱 TETRIS - Stack blocks and clear lines!")
+	fmt.Println("*** TETRIS - Stack blocks and clear lines! ***")
 	fmt.Println("Controls: A/D = Move, S = Soft drop, W = Rotate, Q = Quit")
 	fmt.Println("Press any key to start...")
 
@@ -209,33 +210,33 @@ func (t *Tetris) Play(db interface{}, authManager interface{}) *types.GameResult
 	// Start input handler in a goroutine
 	go t.inputHandler(inputChan, quitChan)
 
-	gameLoop:
-		for !t.gameOver {
-			t.update()
-			t.render()
-	
-			// Check for quit signal from input handler
-			select {
-			case quit := <-quitChan:
-				if quit {
-					break gameLoop
-				}
-			default:
-				// Continue if no quit signal
+gameLoop:
+	for !t.gameOver {
+		t.update()
+		t.render()
+
+		// Check for quit signal from input handler
+		select {
+		case quit := <-quitChan:
+			if quit {
+				break gameLoop
 			}
-	
-			// Game loop delay
-			time.Sleep(50 * time.Millisecond)
+		default:
+			// Continue if no quit signal
 		}
+
+		// Game loop delay
+		time.Sleep(50 * time.Millisecond)
+	}
 
 	// Signal input handler to stop
 	close(inputChan)
 
 	gameTime := time.Since(startTime)
 
-	fmt.Println("\n🎮 GAME OVER!")
-	fmt.Printf("📊 Final Score: %d\n", t.score)
-	fmt.Printf("📏 Lines Cleared: %d\n", t.lines)
+	fmt.Println("\n*** GAME OVER! ***")
+	fmt.Printf("Final Score: %d\n", t.score)
+	fmt.Printf("Lines Cleared: %d\n", t.lines)
 
 	// Calculate final score with bonuses
 	finalScore := t.calculateFinalScore(gameTime)
@@ -303,7 +304,7 @@ func (t *Tetris) render() {
 
 	fmt.Print("\033[2J\033[H")
 
-	fmt.Printf("🧱 TETRIS | Score: %d | Lines: %d | Level: %d\n", t.score, t.lines, t.level)
+	fmt.Printf("TETRIS | Score: %d | Lines: %d | Level: %d\n", t.score, t.lines, t.level)
 	fmt.Println(strings.Repeat("═", 50))
 
 	// Create display board
@@ -312,7 +313,11 @@ func (t *Tetris) render() {
 		display[i] = make([]string, BoardWidth)
 		for j := range display[i] {
 			if t.board[i][j] == 0 {
-				display[i][j] = "⬛"
+				if supportsColor() {
+					display[i][j] = "  " // Two spaces for color mode
+				} else {
+					display[i][j] = ".." // Dots for ASCII mode
+				}
 			} else {
 				display[i][j] = pieceColors[t.board[i][j]-1]
 			}
@@ -334,40 +339,58 @@ func (t *Tetris) render() {
 		}
 	}
 
-	// Print board with next piece preview
-	for i, row := range display {
+	// Print the main board
+	for _, row := range display {
 		fmt.Print("║")
 		for _, cell := range row {
 			fmt.Print(cell)
 		}
 		fmt.Print("║")
-
-		// Show next piece preview on the right
-		if i < 4 && t.nextPiece != nil && len(t.nextPiece.shape) > 0 {
-			if i == 0 {
-				fmt.Print("  Next:")
-			}
-			if i == 1 {
-				fmt.Print("  ")
-				for py := 0; py < len(t.nextPiece.shape) && py < 2; py++ {
-					for px := 0; px < len(t.nextPiece.shape[py]) && px < 4; px++ {
-						if t.nextPiece.shape[py][px] == 1 {
-							fmt.Print(pieceColors[t.nextPiece.pieceType])
-						} else {
-							fmt.Print("⬛")
-						}
-					}
-					if py == 0 {
-						fmt.Print("\n" + strings.Repeat(" ", 12))
-					}
-				}
-			}
-		}
 		fmt.Println()
 	}
 
-	fmt.Println("╚" + strings.Repeat("═", BoardWidth) + "╝")
-	fmt.Println("Controls: A/D=Move, S=Down, W=Rotate, Q=Quit")
+	// Fix the bottom border width
+	fmt.Println("╚" + strings.Repeat("═", BoardWidth*2) + "╝")
+
+	// Show next piece separately below the board
+	if t.nextPiece != nil {
+		fmt.Println("\nNext Piece:")
+		for py := 0; py < len(t.nextPiece.shape); py++ {
+			fmt.Print("  ")
+			for px := 0; px < len(t.nextPiece.shape[py]); px++ {
+				if t.nextPiece.shape[py][px] == 1 {
+					fmt.Print(pieceColors[t.nextPiece.pieceType])
+				} else {
+					fmt.Print("  ")
+				}
+			}
+			fmt.Println()
+		}
+	}
+
+	fmt.Println("\nControls: A/D=Move, S=Down, W=Rotate, Q=Quit")
+}
+
+func init() {
+	// Check if terminal supports colors
+	if supportsColor() {
+		pieceColors = []string{
+			"\033[44m  \033[0m", // Blue
+			"\033[43m  \033[0m", // Yellow
+			"\033[45m  \033[0m", // Magenta
+			"\033[42m  \033[0m", // Green
+			"\033[41m  \033[0m", // Red
+			"\033[47m  \033[0m", // White
+			"\033[46m  \033[0m", // Cyan
+		}
+	} else {
+		pieceColors = []string{"##", "@@", "**", "%%", "&&", "++", "=="}
+	}
+}
+
+func supportsColor() bool {
+	term := os.Getenv("TERM")
+	return term != "" && term != "dumb"
 }
 
 // inputHandler runs in a separate goroutine to handle input
@@ -571,7 +594,7 @@ func (t *Tetris) GetName() string {
 
 // GetDescription returns the game description
 func (t *Tetris) GetDescription() string {
-	return "🧱 Classic block-stacking puzzle game. Clear lines by filling rows completely!"
+	return "Classic block-stacking puzzle game. Clear lines by filling rows completely!"
 }
 
 // GetDifficulty returns the current difficulty level of the Tetris game
