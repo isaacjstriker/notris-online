@@ -8,8 +8,6 @@ import (
 	"time"
 
 	"github.com/eiannone/keyboard" // Add this import
-	"github.com/isaacjstriker/devware/internal/auth"
-	"github.com/isaacjstriker/devware/internal/database"
 	"github.com/isaacjstriker/devware/internal/types"
 )
 
@@ -18,6 +16,16 @@ const (
 	BoardHeight = 20
 	PreviewSize = 4
 )
+
+// GameState represents the data sent to the client for rendering.
+type GameState struct {
+	Board     [][]int `json:"board"`
+	NextPiece [][]int `json:"nextPiece"`
+	Score     int     `json:"score"`
+	Lines     int     `json:"lines"`
+	Level     int     `json:"level"`
+	GameOver  bool    `json:"gameOver"`
+}
 
 // Tetris represents a Tetris game instance
 type Tetris struct {
@@ -30,6 +38,10 @@ type Tetris struct {
 	gameOver     bool
 	dropTimer    time.Time
 	dropInterval time.Duration
+
+	// For web socket communication
+	dropCounter int
+	dropSpeed   int
 }
 
 // Piece represents a Tetris piece
@@ -138,161 +150,79 @@ func (t *Tetris) spawnNextPiece() {
 	}
 }
 
-// Play starts the Tetris game
-func (t *Tetris) Play(db interface{}, authManager interface{}) *types.GameResult {
-	var realDB *database.DB
-	var realAuth *auth.CLIAuth
+// GetState returns the current state of the game for JSON serialization.
+func (t *Tetris) GetState() GameState {
+	// Create a copy of the board to draw the current piece on
+	boardCopy := make([][]int, BoardHeight)
+	for i := range t.board {
+		boardCopy[i] = make([]int, BoardWidth)
+		copy(boardCopy[i], t.board[i])
+	}
 
-	if db != nil {
-		var ok bool
-		realDB, ok = db.(*database.DB)
-		if !ok {
-			return &types.GameResult{
-				GameName: "Tetris",
-				Score:    0,
-				Duration: 0,
-				Accuracy: 0,
-				Perfect:  false,
-				Bonus:    0,
-				Metadata: map[string]interface{}{
-					"error": "Invalid database connection",
-				},
+	// Draw the current piece onto the board copy
+	if t.currentPiece != nil {
+		for py := 0; py < len(t.currentPiece.shape); py++ {
+			for px := 0; px < len(t.currentPiece.shape[py]); px++ {
+				if t.currentPiece.shape[py][px] == 1 {
+					boardY := t.currentPiece.y + py
+					boardX := t.currentPiece.x + px
+					if boardY >= 0 && boardY < BoardHeight && boardX >= 0 && boardX < BoardWidth {
+						boardCopy[boardY][boardX] = t.currentPiece.pieceType + 1
+					}
+				}
 			}
 		}
 	}
 
-	if authManager != nil {
-		var ok bool
-		realAuth, ok = authManager.(*auth.CLIAuth)
-		if !ok {
-			return &types.GameResult{
-				GameName: "Tetris",
-				Score:    0,
-				Duration: 0,
-				Accuracy: 0,
-				Perfect:  false,
-				Bonus:    0,
-				Metadata: map[string]interface{}{
-					"error": "Invalid authentication manager",
-				},
-			}
-		}
+	var nextPieceShape [][]int
+	if t.nextPiece != nil {
+		nextPieceShape = t.nextPiece.shape
 	}
 
-	fmt.Println("*** TETRIS - Stack blocks and clear lines! ***")
-	fmt.Println("Controls: A/D = Move, S = Soft drop, W = Rotate, Q = Quit")
-	fmt.Println("Press any key to start...")
-
-	// Initialize keyboard for input
-	if err := keyboard.Open(); err != nil {
-		fmt.Printf("Failed to initialize keyboard: %v\n", err)
-		return &types.GameResult{
-			GameName: "Tetris",
-			Score:    0,
-			Duration: 0,
-			Accuracy: 0,
-			Perfect:  false,
-			Bonus:    0,
-			Metadata: map[string]interface{}{
-				"error": "Failed to initialize keyboard input",
-			},
-		}
-	}
-	defer keyboard.Close()
-
-	fmt.Scanln()
-	startTime := time.Now()
-
-	// Create a channel for input handling
-	inputChan := make(chan bool, 1)
-	quitChan := make(chan bool, 1)
-
-	// Start input handler in a goroutine
-	go t.inputHandler(inputChan, quitChan)
-
-gameLoop:
-	for !t.gameOver {
-		t.update()
-		t.render()
-
-		// Check for quit signal from input handler
-		select {
-		case quit := <-quitChan:
-			if quit {
-				break gameLoop
-			}
-		default:
-			// Continue if no quit signal
-		}
-
-		// Game loop delay
-		time.Sleep(50 * time.Millisecond)
-	}
-
-	// Signal input handler to stop
-	close(inputChan)
-
-	gameTime := time.Since(startTime)
-
-	fmt.Println("\n*** GAME OVER! ***")
-	fmt.Printf("Final Score: %d\n", t.score)
-	fmt.Printf("Lines Cleared: %d\n", t.lines)
-
-	// Calculate final score with bonuses
-	finalScore := t.calculateFinalScore(gameTime)
-
-	// Calculate accuracy based on lines cleared vs time played
-	accuracy := float64(t.lines) / gameTime.Minutes() * 10 // rough accuracy metric
-	if accuracy > 100 {
-		accuracy = 100
-	}
-
-	// Check if it's a perfect game (high score with good efficiency)
-	perfect := t.lines >= 40 && accuracy >= 80
-
-	if realAuth != nil && realAuth.GetSession().IsLoggedIn() {
-		session := realAuth.GetSession().GetCurrentSession()
-		if session != nil && realDB != nil {
-			// Create additional data for Tetris-specific stats
-			additionalData := map[string]interface{}{
-				"lines":     t.lines,
-				"level":     t.level,
-				"game_time": gameTime.Seconds(),
-			}
-
-			err := realDB.SaveGameScore(session.UserID, "tetris", finalScore, additionalData)
-			if err != nil {
-				fmt.Printf("Failed to save game score: %v\n", err)
-			}
-		}
-	}
-
-	return &types.GameResult{
-		GameName: "Tetris",
-		Score:    finalScore,
-		Duration: gameTime.Seconds(),
-		Accuracy: accuracy,
-		Perfect:  perfect,
-		Bonus:    finalScore - t.score, // difference between final and base score
-		Metadata: map[string]interface{}{
-			"lines":       t.lines,
-			"level":       t.level,
-			"base_score":  t.score,
-			"time_bonus":  int(gameTime.Minutes()) * 50,
-			"level_bonus": (t.level - 1) * 100,
-		},
+	return GameState{
+		Board:     boardCopy,
+		NextPiece: nextPieceShape,
+		Score:     t.score,
+		Lines:     t.lines,
+		Level:     t.level,
+		GameOver:  t.gameOver,
 	}
 }
 
-func (t *Tetris) update() {
-	// Drop piece automatically based on level
-	if time.Since(t.dropTimer) > t.dropInterval {
-		if !t.movePiece(0, 1) {
-			t.placePiece()
-			t.clearLines()
-			t.spawnPiece() // This will handle next piece generation
-		}
-		t.dropTimer = time.Now()
+// HandleWebInput processes a single command from the web client.
+func (t *Tetris) HandleWebInput(input string) {
+	switch input {
+	case "left":
+		t.movePiece(-1, 0)
+	case "right":
+		t.movePiece(1, 0)
+	case "down":
+		t.movePiece(0, 1)
+	case "rotate":
+		t.rotatePiece()
+	}
+}
+
+// IsGameOver checks if the game has ended.
+func (t *Tetris) IsGameOver() bool {
+	return t.gameOver
+}
+
+// GetScore returns the final score.
+func (t *Tetris) GetScore() int {
+	return t.score
+}
+
+// Update is the main game tick function, replacing the old game loop.
+func (t *Tetris) Update() {
+	if t.gameOver {
+		return
+	}
+
+	t.dropCounter++
+	if t.dropCounter >= t.dropSpeed {
+		t.dropCounter = 0
+		t.movePiece(0, 1)
 	}
 }
 
@@ -604,4 +534,11 @@ func (t *Tetris) GetDifficulty() int {
 
 func (t *Tetris) IsAvailable() bool {
 	return true
+}
+
+// Play is a placeholder to satisfy the types.Game interface for the old registry.
+// This is not used in the web version.
+func (t *Tetris) Play(db interface{}, authManager interface{}) *types.GameResult {
+	// This game is now played over websockets, so this CLI-based method is a stub.
+	return nil
 }
