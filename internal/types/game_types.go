@@ -15,16 +15,6 @@ type GameResult struct {
     Metadata     map[string]interface{} `json:"metadata"`
 }
 
-// ChallengeStats represents the overall challenge performance
-type ChallengeStats struct {
-    TotalScore    int           `json:"total_score"`
-    GamesPlayed   int           `json:"games_played"`
-    TotalDuration float64       `json:"total_duration"`
-    AvgAccuracy   float64       `json:"avg_accuracy"`
-    PerfectGames  int           `json:"perfect_games"`
-    Results       []GameResult  `json:"results"`
-}
-
 // GameStats represents the statistics from a typing game
 type GameStats struct {
     Score        int     `json:"score"`

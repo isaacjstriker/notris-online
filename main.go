@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/isaacjstriker/devware/games"
+	"github.com/isaacjstriker/devware/games/breakout" // Add this import
 	"github.com/isaacjstriker/devware/games/tetris"
 	"github.com/isaacjstriker/devware/games/typing"
 	"github.com/isaacjstriker/devware/internal/auth"
@@ -71,6 +72,7 @@ func main() {
 			ui.MenuItem{Label: "[*] Challenge Mode (All Games)", Value: "challenge"},
 			ui.MenuItem{Label: "[T] Typing Speed Challenge", Value: "typing"},
 			ui.MenuItem{Label: "[B] Tetris", Value: "block-stacking"},
+			ui.MenuItem{Label: "[O] Breakout", Value: "breakout"}, // Add this line
 		)
 
 		// Auth and leaderboard items
@@ -104,11 +106,13 @@ func main() {
 			}
 
 		case "block-stacking":
-			tetrisGame := tetris.NewTetris()
-			if authManager != nil {
-				tetrisGame.Play(db, authManager)
-			}
-
+			game := tetris.NewTetris()
+			result := game.Play(db, authManager)
+			fmt.Printf("Game over! Final score: %d\n", result.Score)
+		case "breakout": // Add this case
+			game := breakout.NewBreakout()
+			result := game.Play(db, authManager)
+			fmt.Printf("Game over! Final score: %d\n", result.Score)
 		case "auth":
 			if authManager != nil {
 				authManager.ShowAuthMenu()

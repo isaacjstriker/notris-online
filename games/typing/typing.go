@@ -149,13 +149,7 @@ func (tg *TypingGame) Play(db interface{}, authManager interface{}) *types.GameR
 
 	fmt.Printf("[SAVE] Attempting to save score for user: %s (ID: %d)\n", session.Username, session.UserID)
 
-	// Submit score to database
-	err = realDB.SubmitScore(session.UserID, "typing", result.Score, nil)
-	if err != nil {
-		fmt.Printf("[ERROR] Error saving score: %v\n", err)
-		return result
-	}
-
+	// Score is already saved using SaveGameScore above.
 	fmt.Println("[OK] Score saved successfully!")
 
 	return result

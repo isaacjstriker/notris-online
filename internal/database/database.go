@@ -1,18 +1,12 @@
 package database
 
 import (
-	"bytes"
 	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"io"
-	"net/http"
-	"os"
 	"strings"
 	"time"
-
-	"github.com/isaacjstriker/devware/internal/types"
 
 	_ "github.com/lib/pq"           // PostgreSQL driver
 	_ "github.com/mattn/go-sqlite3" // Keep SQLite driver for local development
@@ -265,22 +259,28 @@ func (db *DB) GetUserByUsername(username string) (*User, string, error) {
 }
 
 // SaveGameScore saves a game score to the database
-func (db *DB) SaveGameScore(userID int, gameType string, score int, additionalData map[string]interface{}) error {
+func (db *DB) SaveGameScore(userID int, gameType string, score int, metadata map[string]interface{}) error {
+	// Corrected query to use the 'metadata' column
 	query := `
-		INSERT INTO game_scores (user_id, game_type, score, additional_data)
-		VALUES (?, ?, ?, ?)
-	`
+        INSERT INTO game_scores (user_id, game_type, score, metadata, played_at)
+        VALUES (?, ?, ?, ?, ?)
+    `
 
-	var additionalDataJSON []byte
-	if additionalData != nil {
-		var err error
-		additionalDataJSON, err = json.Marshal(additionalData)
+	var metadataValue interface{}
+	var err error
+
+	if metadata != nil {
+		metadataJSON, err := json.Marshal(metadata)
 		if err != nil {
-			return fmt.Errorf("failed to marshal additional data: %w", err)
+			return fmt.Errorf("failed to marshal metadata: %w", err)
+		}
+		metadataValue = string(metadataJSON) // For SQLite
+		if db.dbType == "postgres" {
+			metadataValue = metadataJSON // For PostgreSQL JSONB
 		}
 	}
 
-	_, err := db.conn.Exec(query, userID, gameType, score, string(additionalDataJSON))
+	_, err = db.conn.Exec(query, userID, gameType, score, metadataValue, time.Now())
 	if err != nil {
 		return fmt.Errorf("failed to save game score: %w", err)
 	}
@@ -430,181 +430,7 @@ func (db *DB) GetUserStats(userID int, gameType string) (*LeaderboardEntry, erro
 	return &entry, nil
 }
 
-// SaveChallengeScore saves a challenge score to the database
-func (db *DB) SaveChallengeScore(userID int, stats *types.ChallengeStats) error {
-	query := `
-        INSERT INTO challenge_scores (
-            user_id, total_score, games_played, total_duration, 
-            avg_accuracy, perfect_games, results_json
-        ) VALUES (?, ?, ?, ?, ?, ?, ?)
-    `
-
-	resultsJSON, err := json.Marshal(stats.Results)
-	if err != nil {
-		return fmt.Errorf("failed to marshal results: %w", err)
-	}
-
-	_, err = db.conn.Exec(query,
-		userID,
-		stats.TotalScore,
-		stats.GamesPlayed,
-		stats.TotalDuration,
-		stats.AvgAccuracy,
-		stats.PerfectGames,
-		string(resultsJSON),
-	)
-	if err != nil {
-		return fmt.Errorf("failed to save challenge score: %w", err)
-	}
-
-	return nil
-}
-
-// GetUserChallengeScores gets challenge scores for a user
-func (db *DB) GetUserChallengeScores(userID int, limit int) ([]map[string]interface{}, error) {
-	query := `
-        SELECT id, total_score, games_played, total_duration, 
-               avg_accuracy, perfect_games, results_json, created_at
-        FROM challenge_scores 
-        WHERE user_id = ? 
-        ORDER BY created_at DESC 
-        LIMIT ?
-    `
-
-	rows, err := db.conn.Query(query, userID, limit)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get user challenge scores: %w", err)
-	}
-	defer rows.Close()
-
-	var scores []map[string]interface{}
-	for rows.Next() {
-		var id, totalScore, gamesPlayed, perfectGames int
-		var totalDuration, avgAccuracy float64
-		var resultsJSON string
-		var createdAt time.Time
-
-		err := rows.Scan(&id, &totalScore, &gamesPlayed, &totalDuration,
-			&avgAccuracy, &perfectGames, &resultsJSON, &createdAt)
-		if err != nil {
-			return nil, fmt.Errorf("failed to scan challenge score: %w", err)
-		}
-
-		score := map[string]interface{}{
-			"id":             id,
-			"total_score":    totalScore,
-			"games_played":   gamesPlayed,
-			"total_duration": totalDuration,
-			"avg_accuracy":   avgAccuracy,
-			"perfect_games":  perfectGames,
-			"results_json":   resultsJSON,
-			"created_at":     createdAt,
-		}
-		scores = append(scores, score)
-	}
-
-	return scores, nil
-}
-
-// GetTopChallengeScores gets the top challenge scores across all users
-func (db *DB) GetTopChallengeScores(limit int) ([]map[string]interface{}, error) {
-	query := `
-        SELECT cs.id, cs.total_score, cs.games_played, cs.total_duration,
-               cs.avg_accuracy, cs.perfect_games, cs.created_at, u.username
-        FROM challenge_scores cs
-        JOIN users u ON cs.user_id = u.id
-        ORDER BY cs.total_score DESC 
-        LIMIT ?
-    `
-
-	rows, err := db.conn.Query(query, limit)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get top challenge scores: %w", err)
-	}
-	defer rows.Close()
-
-	var scores []map[string]interface{}
-	for rows.Next() {
-		var id, totalScore, gamesPlayed, perfectGames int
-		var totalDuration, avgAccuracy float64
-		var createdAt time.Time
-		var username string
-
-		err := rows.Scan(&id, &totalScore, &gamesPlayed, &totalDuration,
-			&avgAccuracy, &perfectGames, &createdAt, &username)
-		if err != nil {
-			return nil, fmt.Errorf("failed to scan challenge score: %w", err)
-		}
-
-		score := map[string]interface{}{
-			"id":             id,
-			"total_score":    totalScore,
-			"games_played":   gamesPlayed,
-			"total_duration": totalDuration,
-			"avg_accuracy":   avgAccuracy,
-			"perfect_games":  perfectGames,
-			"created_at":     createdAt,
-			"username":       username,
-		}
-		scores = append(scores, score)
-	}
-
-	return scores, nil
-}
-
 // Close closes the database connection
 func (db *DB) Close() error {
 	return db.conn.Close()
-}
-
-type SupabaseClient struct {
-	URL string
-	Key string
-}
-
-func NewSupabaseClient() *SupabaseClient {
-	return &SupabaseClient{
-		URL: os.Getenv("SUPABASE_URL"),
-		Key: os.Getenv("SUPABASE_KEY"),
-	}
-}
-
-func (s *SupabaseClient) SubmitScore(userID int, gameType string, score int) error {
-	if s.URL == "" || s.Key == "" {
-		return fmt.Errorf("Supabase credentials not configured")
-	}
-
-	payload := map[string]interface{}{
-		"user_id":   userID,
-		"game_type": gameType,
-		"score":     score,
-	}
-
-	jsonData, err := json.Marshal(payload)
-	if err != nil {
-		return err
-	}
-
-	req, err := http.NewRequest("POST", s.URL+"/rest/v1/game_scores", bytes.NewBuffer(jsonData))
-	if err != nil {
-		return err
-	}
-
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("apikey", s.Key)
-	req.Header.Set("Authorization", "Bearer "+s.Key)
-
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusCreated {
-		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("failed to submit score: %s", string(body))
-	}
-
-	return nil
 }
