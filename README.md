@@ -100,11 +100,7 @@ You can play games as a guest, but to save your scores to the leaderboard, you m
 │   ├── config/           # Environment configuration loading
 │   ├── database/         # Database connection and query execution
 │   └── types/            # Shared data structures
-├── sql/                  # SQL files
-│   ├── queries/          # Raw SQL queries for sqlc
-│   └── schema/           # Database migration files for Goose
 ├── ui/                   # Reusable UI components (e.g., menu)
-├── .env.example          # Example environment file
 ├── .gitignore
 ├── go.mod                # Go module dependencies
 ├── go.sum
