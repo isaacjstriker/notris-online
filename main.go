@@ -19,28 +19,28 @@ func main() {
 	// Load configuration
 	cfg, err := config.Load()
 	if err != nil {
-		log.Fatalf("Failed to load configuration: %v", err)
+		log.Fatalf("[FATAL] Could not load configuration: %v", err)
 	}
 
-	// Initialize database connection with fallback
-	db, err := database.ConnectWithFallback(cfg.DatabaseURL)
-	if err != nil {
-		log.Fatalf("Could not connect to any database: %v", err)
+	// Initialize database connection (no fallback)
+	var db *database.DB
+	if cfg.DatabaseURL != "" {
+		db, err = database.Connect(cfg.DatabaseURL)
+		if err != nil {
+			// In a cloud environment, if the DB isn't available, we should exit.
+			log.Fatalf("[FATAL] Could not connect to the database: %v", err)
+		}
+		defer db.Close()
+
+		// Create tables if they don't exist
+		if err := db.CreateTables(); err != nil {
+			log.Fatalf("[FATAL] Could not create database tables: %v", err)
+		}
+	} else {
+		log.Println("[WARN] No DATABASE_URL provided. Running in offline mode.")
 	}
-	defer db.Close()
 
-	// Create tables if they don't exist
-	if err := db.CreateTables(); err != nil {
-		log.Fatalf("Failed to create tables: %v", err)
-	}
-
-	// Add test data if database is empty
-	if err := db.CreateTestData(); err != nil {
-		fmt.Printf("ℹ️  Test data: %v\n", err)
-	}
-
-	fmt.Println("[OK] Database connected and tables verified.")
-
+	// Initialize authentication if database is available
 	var authManager *auth.CLIAuth
 
 	// Initialize authentication if database is available

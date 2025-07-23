@@ -1,7 +1,6 @@
 package database
 
 import (
-	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -52,68 +51,33 @@ type UserStats struct {
 	LastPlayed  time.Time `json:"last_played"`
 }
 
-// Connect establishes a connection to the database
-func Connect(databaseURL string) (*DB, error) {
-	var db *sql.DB
-	var err error
-	var dbType string
+// Connect establishes a connection to the database.
+// This function will now be the primary way to connect.
+func Connect(dbURL string) (*DB, error) {
+	if dbURL == "" {
+		return nil, fmt.Errorf("database URL is required")
+	}
 
-	if strings.HasPrefix(databaseURL, "postgresql://") || strings.HasPrefix(databaseURL, "postgres://") {
-		// PostgreSQL connection with SSL and IPv4 preference
-		if !strings.Contains(databaseURL, "sslmode") {
-			if strings.Contains(databaseURL, "?") {
-				databaseURL += "&sslmode=require"
-			} else {
-				databaseURL += "?sslmode=require"
-			}
-		}
-
-		db, err = sql.Open("postgres", databaseURL)
-		dbType = "postgres"
+	// Determine driver from URL prefix
+	var driverName string
+	if strings.HasPrefix(dbURL, "postgres://") || strings.HasPrefix(dbURL, "postgresql://") {
+		driverName = "postgres"
 	} else {
-		// SQLite connection (for local development)
-		db, err = sql.Open("sqlite3", databaseURL)
-		dbType = "sqlite3"
+		// You can add other drivers here if needed in the future
+		return nil, fmt.Errorf("unsupported database type for URL")
 	}
 
+	conn, err := sql.Open(driverName, dbURL)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open database: %w", err)
+		return nil, fmt.Errorf("failed to open database connection: %w", err)
 	}
 
-	// Configure connection pool
-	db.SetMaxOpenConns(25)
-	db.SetMaxIdleConns(25)
-	db.SetConnMaxLifetime(5 * time.Minute)
-
-	// Test the connection with a longer timeout for remote databases
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-	defer cancel()
-
-	if err := db.PingContext(ctx); err != nil {
+	if err = conn.Ping(); err != nil {
 		return nil, fmt.Errorf("failed to ping database: %w", err)
 	}
 
-	return &DB{
-		conn:   db,
-		dbType: dbType,
-	}, nil
-}
-
-// ConnectWithFallback tries to connect to the configured database URL, and falls back to a local SQLite database if it fails
-func ConnectWithFallback(databaseURL string) (*DB, error) {
-	// First try the configured database
-	if databaseURL != "" {
-		db, err := Connect(databaseURL)
-		if err == nil {
-			fmt.Printf("✅ Connected to configured database\n")
-			return db, nil
-		}
-		fmt.Printf("⚠️  Failed to connect to configured database: %v\n", err)
-	}
-
-	// Fallback to local SQLite
-	fmt.Printf("🔄 Falling back to local SQLite database\n")
-	return Connect("devware.db")
+	fmt.Printf("[INFO] Successfully connected to %s database.\n", driverName)
+	return &DB{conn: conn, dbType: driverName}, nil
 }
 
 // CreateTables creates the necessary database tables
