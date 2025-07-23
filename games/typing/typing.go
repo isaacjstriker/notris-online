@@ -125,7 +125,7 @@ func (tg *TypingGame) Play(db interface{}, authManager interface{}) *types.GameR
 
 			err := realDB.SaveGameScore(session.UserID, "typing", result.Score, additionalData)
 			if err != nil {
-				fmt.Printf("[WARNING] Failed to save score: %v\n", err)
+				fmt.Printf("[WARN] Failed to save score: %v\n", err)
 			} else {
 				fmt.Println("[OK] Score saved to database!")
 			}
@@ -136,7 +136,7 @@ func (tg *TypingGame) Play(db interface{}, authManager interface{}) *types.GameR
 
 	// Check if user is logged in
 	if realAuth == nil || !realAuth.GetSession().IsLoggedIn() {
-		fmt.Println("[WARNING] Not logged in - score won't be saved!")
+		fmt.Println("[WARN] Not logged in - score won't be saved!")
 		fmt.Println("[INFO] Log in to save your scores to the leaderboard.")
 		return result
 	}
@@ -147,10 +147,9 @@ func (tg *TypingGame) Play(db interface{}, authManager interface{}) *types.GameR
 		return result
 	}
 
-	fmt.Printf("[SAVE] Attempting to save score for user: %s (ID: %d)\n", session.Username, session.UserID)
-
-	// Score is already saved using SaveGameScore above.
-	fmt.Println("[OK] Score saved successfully!")
+	// This message is redundant since the one above already confirms saving.
+	// fmt.Printf("[SAVE] Attempting to save score for user: %s (ID: %d)\n", session.Username, session.UserID)
+	// fmt.Println("[OK] Score saved successfully!")
 
 	return result
 }

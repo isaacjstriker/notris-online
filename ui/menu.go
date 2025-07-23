@@ -52,18 +52,21 @@ func (m *Menu) drawBorder(char string, length int) {
 
 func (m *Menu) drawBottomBorder(length int) {
 	fmt.Print("╚")
-	for i := 0; i < length-2; i++ {
-		fmt.Print("═")
-	}
+	// The loop was correct, but the final character needs to be printed outside.
+	fmt.Print(strings.Repeat("═", length-2))
 	fmt.Println("╝")
 }
 
-func (m *Menu) centerText(text string, width int) string {
-	if len(text) >= width-4 {
-		return text[:width-4]
+// centerText now correctly centers the text within the available content width.
+func (m *Menu) centerText(text string, contentWidth int) string {
+	if len(text) >= contentWidth {
+		// Truncate if the text is too long to fit
+		return text[:contentWidth]
 	}
-	padding := (width - len(text) - 4) / 2
-	return strings.Repeat(" ", padding) + text + strings.Repeat(" ", width-len(text)-padding-4)
+	padding := contentWidth - len(text)
+	leftPadding := padding / 2
+	rightPadding := padding - leftPadding
+	return strings.Repeat(" ", leftPadding) + text + strings.Repeat(" ", rightPadding)
 }
 
 func (m *Menu) calculateWidth() int {
@@ -122,12 +125,15 @@ func (m *Menu) render() {
 	fmt.Print(strings.Repeat(" ", menuIndent))
 	m.drawBorder("═", m.Width)
 
-	// Use centerText function for the title
-	centeredTitle := m.centerText(m.Title, m.Width)
+	// The content width is the total width minus the two side borders
+	contentWidth := m.Width - 2
+
+	// Use the corrected centerText function for the title
+	centeredTitle := m.centerText(m.Title, contentWidth)
 	fmt.Printf("%s║%s║\n", strings.Repeat(" ", menuIndent), centeredTitle)
 
 	// Separator line
-	fmt.Printf("%s╠%s╣\n", strings.Repeat(" ", menuIndent), strings.Repeat("═", m.Width-2))
+	fmt.Printf("%s╠%s╣\n", strings.Repeat(" ", menuIndent), strings.Repeat("═", contentWidth))
 
 	// Menu items
 	for i, item := range m.Items {
@@ -139,16 +145,20 @@ func (m *Menu) render() {
 			suffix = " ◄"
 		}
 
-		itemText := prefix + item.Label + suffix
-
-		// Use centerText to properly center each item
-		centeredItem := m.centerText(itemText, m.Width)
+		itemText := prefix + item.Label
+		// Calculate padding to make the item fill the width
+		padding := contentWidth - len(itemText) - len(suffix)
+		if padding < 0 {
+			padding = 0
+		}
+		fullItemText := itemText + strings.Repeat(" ", padding) + suffix
 
 		// Print with highlighting if selected
 		if i == m.Selected {
-			fmt.Printf("%s║\033[7m%s\033[0m║\n", strings.Repeat(" ", menuIndent), centeredItem)
+			// Use inverse video for highlighting
+			fmt.Printf("%s║\033[7m%s\033[0m║\n", strings.Repeat(" ", menuIndent), fullItemText)
 		} else {
-			fmt.Printf("%s║%s║\n", strings.Repeat(" ", menuIndent), centeredItem)
+			fmt.Printf("%s║%s║\n", strings.Repeat(" ", menuIndent), fullItemText)
 		}
 	}
 

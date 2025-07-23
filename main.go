@@ -63,35 +63,35 @@ func main() {
 			}
 
 			menuItems = append(menuItems,
-				ui.MenuItem{Label: fmt.Sprintf("[U] %s", userDisplayName), Value: "user_info"},
+				ui.MenuItem{Label: fmt.Sprintf("User Profile: %s", userDisplayName), Value: "user_info"},
 			)
 		}
 
 		// Always available game items
 		menuItems = append(menuItems,
-			ui.MenuItem{Label: "[*] Challenge Mode (All Games)", Value: "challenge"},
-			ui.MenuItem{Label: "[T] Typing Speed Challenge", Value: "typing"},
-			ui.MenuItem{Label: "[B] Tetris", Value: "block-stacking"},
-			ui.MenuItem{Label: "[O] Breakout", Value: "breakout"}, // Add this line
+			ui.MenuItem{Label: "Challenge Mode (All Games)", Value: "challenge"},
+			ui.MenuItem{Label: "Typing Speed Challenge", Value: "typing"},
+			ui.MenuItem{Label: "Tetris", Value: "block-stacking"},
+			ui.MenuItem{Label: "Breakout", Value: "breakout"},
 		)
 
 		// Auth and leaderboard items
 		if authManager != nil && authManager.GetSession().IsLoggedIn() {
 			menuItems = append(menuItems,
-				ui.MenuItem{Label: "[L] View Leaderboards", Value: "leaderboard"},
-				ui.MenuItem{Label: "[A] Authentication", Value: "auth"},
+				ui.MenuItem{Label: "View Leaderboards", Value: "leaderboard"},
+				ui.MenuItem{Label: "Authentication", Value: "auth"},
 			)
 		} else if authManager != nil {
 			menuItems = append(menuItems,
-				ui.MenuItem{Label: "[A] Login / Register", Value: "auth"},
-				ui.MenuItem{Label: "[L] View Leaderboards", Value: "leaderboard"},
+				ui.MenuItem{Label: "Login / Register", Value: "auth"},
+				ui.MenuItem{Label: "View Leaderboards", Value: "leaderboard"},
 			)
 		}
 
 		// Always at the end
 		menuItems = append(menuItems,
-			ui.MenuItem{Label: "[S] Settings", Value: "settings"},
-			ui.MenuItem{Label: "[X] Exit", Value: "exit"},
+			ui.MenuItem{Label: "Settings", Value: "settings"},
+			ui.MenuItem{Label: "Exit", Value: "exit"},
 		)
 
 		// Create and show menu
@@ -117,7 +117,7 @@ func main() {
 			if authManager != nil {
 				authManager.ShowAuthMenu()
 			} else {
-				fmt.Println("\n⚠️  Authentication not available (no database connection)")
+				fmt.Println("\n[WARN] Authentication not available (no database connection)")
 				fmt.Println("Press Enter to continue...")
 				fmt.Scanln()
 			}
@@ -131,7 +131,7 @@ func main() {
 			if db != nil {
 				showLeaderboard(db)
 			} else {
-				fmt.Println("\n⚠️  Leaderboards not available (no database connection)")
+				fmt.Println("\n[WARN] Leaderboards not available (no database connection)")
 				fmt.Println("Press Enter to continue...")
 				fmt.Scanln()
 			}
@@ -238,7 +238,7 @@ func showGameLeaderboard(db *database.DB, gameType, gameTitle string) {
 
 	entries, err := db.GetLeaderboard(gameType, 15)
 	if err != nil {
-		fmt.Printf("❌ Error loading leaderboard: %v\n", err)
+		fmt.Printf("[ERROR] Error loading leaderboard: %v\n", err)
 		return
 	}
 
@@ -287,7 +287,7 @@ func showGameLeaderboard(db *database.DB, gameType, gameTitle string) {
 }
 
 func showAllGamesLeaderboard(db *database.DB) {
-	fmt.Println("\n📊 ALL GAMES COMBINED LEADERBOARD")
+	fmt.Println("\nALL GAMES COMBINED LEADERBOARD")
 	fmt.Println(strings.Repeat("═", 70))
 
 	// This would require a more complex query to combine scores across games
@@ -296,19 +296,18 @@ func showAllGamesLeaderboard(db *database.DB) {
 	games := []struct {
 		gameType string
 		title    string
-		emoji    string
 	}{
-		{"typing", "Typing Speed Challenge", "🎯"},
-		{"tetris", "Tetris", "🧱"},
+		{"typing", "Typing Speed Challenge"},
+		{"tetris", "Tetris"},
 	}
 
 	for _, game := range games {
-		fmt.Printf("\n%s %s - Top 5\n", game.emoji, game.title)
+		fmt.Printf("\n%s - Top 5\n", game.title)
 		fmt.Println(strings.Repeat("─", 40))
 
 		entries, err := db.GetLeaderboard(game.gameType, 5)
 		if err != nil {
-			fmt.Printf("❌ Error loading %s leaderboard: %v\n", game.title, err)
+			fmt.Printf("[ERROR] Error loading %s leaderboard: %v\n", game.title, err)
 			continue
 		}
 

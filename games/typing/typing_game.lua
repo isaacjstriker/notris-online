@@ -28,36 +28,37 @@ end
 
 -- Display game results
 local function display_results(stats)
-    go_println("\n" .. string.rep("🎉", 20))
-    go_println("📊 TYPING CHALLENGE RESULTS")
-    go_println(string.rep("🎉", 20))
+    go_println("\n" .. string.rep("=", 50))
+    go_println("TYPING CHALLENGE RESULTS")
+    go_println(string.rep("=", 50))
     
-    go_println(string.format("⏱️  Time: %.1f seconds", stats.total_time))
-    go_println(string.format("📝 Words Typed: %d", stats.words_typed))
-    go_println(string.format("✅ Correct Words: %d", stats.correct_words))
-    go_println(string.format("🎯 Accuracy: %.1f%%", stats.accuracy))
-    go_println(string.format("⚡ Speed: %.1f WPM", stats.wpm))
-    go_println(string.format("🏆 Final Score: %d points", stats.score))
+    go_println(string.format("Time: %.1f seconds", stats.total_time))
+    go_println(string.format("Words Typed: %d", stats.words_typed))
+    go_println(string.format("Correct Words: %d", stats.correct_words))
+    go_println(string.format("Accuracy: %.1f%%", stats.accuracy))
+    go_println(string.format("Speed: %.1f WPM", stats.wpm))
+    go_println(string.format("Final Score: %d points", stats.score))
     
+    go_println("\n--- Performance Feedback ---")
     -- Performance feedback
     if stats.accuracy >= 95 then
-        go_println("💎 PERFECT! Amazing accuracy!")
+        go_println("PERFECT! Amazing accuracy!")
     elseif stats.accuracy >= 85 then
-        go_println("🌟 Great job! Excellent accuracy!")
+        go_println("Great job! Excellent accuracy!")
     elseif stats.accuracy >= 70 then
-        go_println("👍 Good work! Keep practicing!")
+        go_println("Good work! Keep practicing!")
     else
-        go_println("💪 Keep practicing to improve your accuracy!")
+        go_println("Keep practicing to improve your accuracy!")
     end
     
     if stats.wpm >= 60 then
-        go_println("🚀 Lightning fast typing!")
+        go_println("Lightning fast typing!")
     elseif stats.wpm >= 40 then
-        go_println("⚡ Excellent typing speed!")
+        go_println("Excellent typing speed!")
     elseif stats.wpm >= 25 then
-        go_println("👌 Good typing speed!")
+        go_println("Good typing speed!")
     else
-        go_println("🐢 Focus on building your speed!")
+        go_println("Focus on building your speed!")
     end
     
     go_println(string.rep("=", 50))
@@ -85,12 +86,12 @@ function run_typing_game()
     end
     
     -- Game introduction
-    go_println("\n🎯 TYPING SPEED CHALLENGE")
+    go_println("\n--- TYPING SPEED CHALLENGE ---")
     go_println(string.rep("=", 50))
-    go_println(string.format("📝 You will type %d words as fast and accurately as possible", #game_words))
-    go_println("⏰ Type each word exactly as shown and press Enter")
-    go_println("❌ The game ends if you make a mistake")
-    go_println("🚀 Ready? Press Enter to start...")
+    go_println(string.format("[INFO] You will type %d words as fast and accurately as possible.", #game_words))
+    go_println("[INFO] Type each word exactly as shown and press Enter.")
+    go_println("[RULE] The game ends if you make a mistake.")
+    go_println("\nReady? Press Enter to start...")
     go_read_line()
     
     local start_time = go_current_time()
@@ -104,11 +105,11 @@ function run_typing_game()
         stats.words_typed = stats.words_typed + 1
         
         if user_input == word then
-            go_println("✅ Correct!")
+            go_println("[OK] Correct!")
             stats.correct_words = stats.correct_words + 1
         else
-            go_println(string.format("❌ Incorrect! You typed: '%s', expected: '%s'", user_input, word))
-            go_println("💥 Game Over!")
+            go_println(string.format("[ERROR] Incorrect! You typed: '%s', expected: '%s'", user_input, word))
+            go_println("Game Over!")
             break
         end
         
