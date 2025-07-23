@@ -3,8 +3,8 @@ package auth
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"os"
-	"path/filepath"
 )
 
 // Session represents a user session
@@ -22,16 +22,13 @@ type SessionManager struct {
 
 // NewSessionManager creates a new session manager
 func NewSessionManager() *SessionManager {
-	homeDir, _ := os.UserHomeDir()
-	sessionFile := filepath.Join(homeDir, ".devware_session")
-
-	sm := &SessionManager{
-		sessionFile: sessionFile,
+	sm := &SessionManager{}
+	// Try to load existing session and log if it fails
+	if err := sm.LoadSession(); err != nil {
+		// This is not a fatal error, just means no session was loaded.
+		// A log message is useful for debugging.
+		log.Printf("[DEBUG] No previous session found or failed to load: %v", err)
 	}
-
-	// Try to load existing session
-	sm.LoadSession()
-
 	return sm
 }
 
@@ -76,7 +73,7 @@ func (sm *SessionManager) LoadSession() error {
 	return nil
 }
 
-// GetCurrentSession returns the current session
+// GetCurrentSession returns the current session data
 func (sm *SessionManager) GetCurrentSession() *Session {
 	return sm.current
 }

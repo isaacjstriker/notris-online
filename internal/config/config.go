@@ -35,7 +35,7 @@ func Load() (*Config, error) {
 		Debug:       getEnvAsBool("DEBUG", false),
 		ServerPort:  getEnvAsInt("SERVER_PORT", 8080),
 		ServerHost:  getEnv("SERVER_HOST", "localhost"),
-		JWTSecret:   os.Getenv("JWT_SECRET"), // Load the secret
+		JWTSecret:   os.Getenv("JWT_SECRET"),
 	}
 
 	// --- VALIDATION AND AUTO-CONFIGURATION LOGIC ---
@@ -49,7 +49,7 @@ func Load() (*Config, error) {
 
 		// Attempt to create/append to the .env file automatically.
 		envFilePath := ".env"
-		f, err := os.OpenFile(envFilePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+		f, err := os.OpenFile(envFilePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
 		if err != nil {
 			// If we can't write to the file (e.g., permissions error), fall back to manual instructions.
 			errorMsg := fmt.Sprintf(`

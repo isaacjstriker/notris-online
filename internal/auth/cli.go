@@ -61,19 +61,21 @@ func (auth *CLIAuth) ShowAuthMenu() {
 			fmt.Println("\n[INFO] Continuing as guest...")
 			fmt.Println("Note: Your scores won't be saved!")
 			fmt.Println("Press Enter to continue...")
-			fmt.Scanln()
+			_, _ = fmt.Scanln() // Explicitly ignore the error
 			return
 		case "switch":
-			auth.session.ClearSession()
+			if err := auth.session.ClearSession(); err != nil {
+				fmt.Printf("[WARN] Could not clear session file: %v\n", err)
+			}
 			fmt.Println("\n[INFO] Logged out. Please login with a different account.")
 			fmt.Println("Press Enter to continue...")
-			fmt.Scanln()
+			_, _ = fmt.Scanln()
 		case "logout":
 			auth.handleLogout()
 		case "info":
 			fmt.Printf("\n%s\n", auth.session.GetUserInfo())
 			fmt.Println("Press Enter to continue...")
-			fmt.Scanln()
+			_, _ = fmt.Scanln()
 		case "back", "exit":
 			return
 		}
@@ -101,14 +103,14 @@ func (auth *CLIAuth) handleLogin() {
 	if err != nil {
 		fmt.Println("[ERROR] Invalid username or password")
 		fmt.Println("Press Enter to continue...")
-		fmt.Scanln()
+		_, _ = fmt.Scanln()
 		return
 	}
 
 	if !CheckPassword(password, passwordHash) {
 		fmt.Println("[ERROR] Invalid username or password")
 		fmt.Println("Press Enter to continue...")
-		fmt.Scanln()
+		_, _ = fmt.Scanln()
 		return
 	}
 
@@ -120,7 +122,7 @@ func (auth *CLIAuth) handleLogin() {
 
 	fmt.Printf("\n[OK] Welcome back, %s!\n", user.Username)
 	fmt.Println("Press Enter to continue...")
-	fmt.Scanln()
+	_, _ = fmt.Scanln()
 }
 
 // handleRegister handles user registration
@@ -137,7 +139,7 @@ func (auth *CLIAuth) handleRegister() {
 	if err := ValidateUsername(username); err != nil {
 		fmt.Printf("[ERROR] %v\n", err)
 		fmt.Println("Press Enter to continue...")
-		fmt.Scanln()
+		_, _ = fmt.Scanln()
 		return
 	}
 
@@ -150,7 +152,7 @@ func (auth *CLIAuth) handleRegister() {
 	if err := ValidateEmail(email); err != nil {
 		fmt.Printf("[ERROR] %v\n", err)
 		fmt.Println("Press Enter to continue...")
-		fmt.Scanln()
+		_, _ = fmt.Scanln()
 		return
 	}
 
@@ -163,7 +165,7 @@ func (auth *CLIAuth) handleRegister() {
 	if err := ValidatePassword(password); err != nil {
 		fmt.Printf("[ERROR] %v\n", err)
 		fmt.Println("Press Enter to continue...")
-		fmt.Scanln()
+		_, _ = fmt.Scanln()
 		return
 	}
 
@@ -176,7 +178,7 @@ func (auth *CLIAuth) handleRegister() {
 	if password != confirmPassword {
 		fmt.Println("[ERROR] Passwords do not match")
 		fmt.Println("Press Enter to continue...")
-		fmt.Scanln()
+		_, _ = fmt.Scanln()
 		return
 	}
 
@@ -191,7 +193,7 @@ func (auth *CLIAuth) handleRegister() {
 		fmt.Printf("[ERROR] Failed to create account: %v\n", err)
 		fmt.Println("(Username or email might already be taken)")
 		fmt.Println("Press Enter to continue...")
-		fmt.Scanln()
+		_, _ = fmt.Scanln()
 		return
 	}
 
@@ -203,7 +205,7 @@ func (auth *CLIAuth) handleRegister() {
 
 	fmt.Printf("\n[OK] Account created successfully! Welcome, %s!\n", user.Username)
 	fmt.Println("Press Enter to continue...")
-	fmt.Scanln()
+	_, _ = fmt.Scanln()
 }
 
 // handleLogout handles user logout
@@ -228,7 +230,7 @@ func (auth *CLIAuth) handleLogout() {
 		fmt.Println("\n[INFO] You have been logged out.")
 	}
 	fmt.Println("Press Enter to continue...")
-	fmt.Scanln()
+	_, _ = fmt.Scanln()
 }
 
 // RequireAuth ensures user is authenticated, prompting login if needed
