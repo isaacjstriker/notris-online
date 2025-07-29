@@ -1,16 +1,15 @@
 // This file will contain placeholder game logic and leaderboard rendering.
 
 async function loadLeaderboard() {
-    const gameSelect = document.getElementById('leaderboard-game-select');
     const contentDiv = document.getElementById('leaderboard-content');
-    const gameType = gameSelect.value;
+    const gameType = 'tetris'; // Hardcoded to tetris
 
     contentDiv.innerHTML = '<p>Loading...</p>';
 
     try {
         const entries = await getLeaderboard(gameType);
         if (entries.length === 0) {
-            contentDiv.innerHTML = '<p>No scores yet for this game. Be the first!</p>';
+            contentDiv.innerHTML = '<p>No scores yet. Be the first!</p>';
             return;
         }
 
@@ -119,7 +118,7 @@ function handleKeyPress(event) {
         default:
             return;
     }
-    ws.send(action);
+    ws.send(JSON.stringify({ type: 'input', key: action }));
     event.preventDefault(); // Prevent arrow keys from scrolling the page
 }
 

@@ -7,14 +7,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/eiannone/keyboard" // Add this import
-	"github.com/isaacjstriker/devware/internal/types"
+	"github.com/eiannone/keyboard"
 )
 
 const (
 	BoardWidth  = 10
 	BoardHeight = 20
-	PreviewSize = 4
 )
 
 // GameState represents the data sent to the client for rendering.
@@ -36,8 +34,6 @@ type Tetris struct {
 	lines        int
 	level        int
 	gameOver     bool
-	dropTimer    time.Time
-	dropInterval time.Duration
 
 	// For web socket communication
 	dropCounter int
@@ -95,12 +91,12 @@ var pieceColors = []string{"##", "@@", "**", "%%", "&&", "++", "=="}
 // NewTetris creates a new Tetris game
 func NewTetris() *Tetris {
 	t := &Tetris{
-		board:        make([][]int, BoardHeight),
-		score:        0,
-		lines:        0,
-		level:        1,
-		dropInterval: time.Millisecond * 1000,
-		dropTimer:    time.Now(),
+		board:       make([][]int, BoardHeight),
+		score:       0,
+		lines:       0,
+		level:       1,
+		dropSpeed:   20, // Ticks per drop
+		dropCounter: 0,
 	}
 
 	// Initialize board
@@ -222,7 +218,14 @@ func (t *Tetris) Update() {
 	t.dropCounter++
 	if t.dropCounter >= t.dropSpeed {
 		t.dropCounter = 0
-		t.movePiece(0, 1)
+		// Try to move the piece down
+		if !t.movePiece(0, 1) {
+			// If it fails, the piece has landed
+			t.placePiece()
+			t.clearLines()
+			t.spawnPiece()
+			// The spawnPiece function will set gameOver if a new piece can't be placed.
+		}
 	}
 }
 
@@ -378,18 +381,33 @@ func (t *Tetris) movePiece(dx, dy int) bool {
 	return false
 }
 
-// rotatePiece rotates the current piece
+// rotatePiece rotates the current piece, with wall-kicking.
 func (t *Tetris) rotatePiece() {
 	if t.currentPiece == nil {
 		return
 	}
 
 	originalShape := t.currentPiece.shape
-	t.currentPiece.shape = rotateShape(t.currentPiece.shape)
+	rotatedShape := rotateShape(t.currentPiece.shape)
+	t.currentPiece.shape = rotatedShape
 
-	if t.checkCollision(t.currentPiece, 0, 0) {
-		t.currentPiece.shape = originalShape // Revert if collision
+	// Try standard rotation
+	if !t.checkCollision(t.currentPiece, 0, 0) {
+		return // Success
 	}
+
+	// Wall kick tests (try moving left/right)
+	// These are common offsets for I, J, L, S, T, Z pieces
+	kickOffsets := []int{1, -1, 2, -2}
+	for _, dx := range kickOffsets {
+		if !t.checkCollision(t.currentPiece, dx, 0) {
+			t.currentPiece.x += dx
+			return // Success
+		}
+	}
+
+	// If all kicks fail, revert
+	t.currentPiece.shape = originalShape
 }
 
 // checkCollision checks if a piece would collide
@@ -467,26 +485,13 @@ func (t *Tetris) clearLines() {
 
 		// Level progression
 		t.level = (t.lines / 10) + 1
-		t.dropInterval = time.Millisecond * time.Duration(1000-(t.level-1)*50)
-		if t.dropInterval < 50*time.Millisecond {
-			t.dropInterval = 50 * time.Millisecond
+		// Adjust drop speed based on level
+		newDropSpeed := 20 - (t.level - 1)
+		if newDropSpeed < 2 {
+			newDropSpeed = 2 // Set a minimum drop speed
 		}
+		t.dropSpeed = newDropSpeed
 	}
-}
-
-// calculateFinalScore adds time and level bonuses
-func (t *Tetris) calculateFinalScore(gameTime time.Duration) int {
-	finalScore := t.score
-
-	// Time bonus (bonus for lasting longer)
-	timeBonus := int(gameTime.Minutes()) * 50
-	finalScore += timeBonus
-
-	// Level bonus
-	levelBonus := (t.level - 1) * 100
-	finalScore += levelBonus
-
-	return finalScore
 }
 
 // Helper functions
@@ -515,30 +520,4 @@ func rotateShape(shape [][]int) [][]int {
 	}
 
 	return rotated
-}
-
-// GetName returns the game name
-func (t *Tetris) GetName() string {
-	return "Tetris"
-}
-
-// GetDescription returns the game description
-func (t *Tetris) GetDescription() string {
-	return "Classic block-stacking puzzle game. Clear lines by filling rows completely!"
-}
-
-// GetDifficulty returns the current difficulty level of the Tetris game
-func (t *Tetris) GetDifficulty() int {
-	return t.level
-}
-
-func (t *Tetris) IsAvailable() bool {
-	return true
-}
-
-// Play is a placeholder to satisfy the types.Game interface for the old registry.
-// This is not used in the web version.
-func (t *Tetris) Play(db interface{}, authManager interface{}) *types.GameResult {
-	// This game is now played over websockets, so this CLI-based method is a stub.
-	return nil
 }

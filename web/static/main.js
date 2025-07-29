@@ -48,7 +48,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.getElementById('show-register-btn').addEventListener('click', () => showView('register'));
     document.getElementById('show-login-btn').addEventListener('click', () => showView('login'));
-    document.getElementById('back-to-menu-btn').addEventListener('click', () => showView('mainMenu'));
+    document.getElementById('back-to-menu-btn').addEventListener('click', () => {
+        showView('mainMenu');
+        if (ws) {
+            ws.close();
+        }
+    });
     document.getElementById('back-to-menu-from-leaderboard-btn').addEventListener('click', () => showView('mainMenu'));
 
     // Forms
@@ -56,13 +61,13 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('register-form').addEventListener('submit', handleRegister);
 
     // Game Menu
-    document.querySelectorAll('.menu-btn[data-game]').forEach(button => {
-        button.addEventListener('click', () => {
-            const gameType = button.dataset.game;
-            showView('game');
-            // Start the actual game now
-            startGame(gameType);
-        });
+    document.getElementById('singleplayer-btn').addEventListener('click', () => {
+        showView('game');
+        startGame('tetris');
+    });
+
+    document.getElementById('multiplayer-btn').addEventListener('click', () => {
+        alert('Multiplayer is coming soon!');
     });
 
     // Leaderboard
@@ -71,7 +76,6 @@ document.addEventListener('DOMContentLoaded', () => {
         await loadLeaderboard();
     });
 
-    document.getElementById('leaderboard-game-select').addEventListener('change', loadLeaderboard);
 
 
     // --- Initialization ---

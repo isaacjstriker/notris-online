@@ -44,12 +44,18 @@ func gameLoop(conn *websocket.Conn, game *tetris.Tetris) {
 	go func() {
 		defer close(inputChan)
 		for {
-			_, message, err := conn.ReadMessage()
+			var msg struct {
+				Type string `json:"type"`
+				Key  string `json:"key"`
+			}
+			err := conn.ReadJSON(&msg)
 			if err != nil {
 				// Client disconnected
 				return
 			}
-			inputChan <- string(message)
+			if msg.Type == "input" {
+				inputChan <- msg.Key
+			}
 		}
 	}()
 

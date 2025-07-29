@@ -25,19 +25,18 @@
         <main>
             <!-- Main Menu View -->
             <div id="main-menu-view">
-                <h2>Main Menu</h2>
+                <h1 id="game-title">TETRIS ONLINE</h1>
                 <div class="menu-options">
-                    <button class="menu-btn" data-game="tetris">Play Tetris</button>
-                    <button class="menu-btn" data-game="breakout">Play Breakout</button>
-                    <button class="menu-btn" data-game="typing">Play Typing Challenge</button>
-                    <button id="leaderboard-btn" class="menu-btn">View Leaderboards</button>
+                    <button id="singleplayer-btn" class="menu-btn">Singleplayer</button>
+                    <button id="multiplayer-btn" class="menu-btn">Multiplayer</button>
+                    <button id="leaderboard-btn" class="menu-btn">Leaderboards</button>
                 </div>
             </div>
 
             <!-- Game View -->
             <div id="game-view" class="hidden">
                 <button id="back-to-menu-btn">Back to Menu</button>
-                <canvas id="game-canvas" width="800" height="600"></canvas>
+                <canvas id="game-canvas" width="300" height="600"></canvas>
             </div>
 
             <!-- Login View -->
@@ -70,11 +69,6 @@
             <div id="leaderboard-view" class="hidden">
                 <h2>Leaderboards</h2>
                 <div class="leaderboard-controls">
-                    <select id="leaderboard-game-select">
-                        <option value="tetris">Tetris</option>
-                        <option value="breakout">Breakout</option>
-                        <option value="typing">Typing Challenge</option>
-                    </select>
                     <button id="back-to-menu-from-leaderboard-btn">Back to Menu</button>
                 </div>
                 <div id="leaderboard-content"></div>

@@ -13,7 +13,6 @@ require (
 require (
 	github.com/eiannone/keyboard v0.0.0-20220611211555-0d226195f203
 	github.com/golang-jwt/jwt/v5 v5.2.3
-	github.com/yuin/gopher-lua v1.1.1
 )
 
 require (
