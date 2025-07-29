@@ -147,6 +147,11 @@ function handleKeyPress(event) {
             action = 'down';
             break;
         case 'ArrowUp':
+            action = 'hardDrop';
+            break;
+        case ' ': // Spacebar for rotation
+        case 'x':
+        case 'X':
             action = 'rotate';
             break;
         default:
@@ -169,6 +174,21 @@ function renderGame(state) {
                 if (tileValue > 0) {
                     ctx.fillStyle = COLORS[tileValue];
                     ctx.fillRect(col * TILE_SIZE, row * TILE_SIZE, TILE_SIZE - 1, TILE_SIZE - 1);
+                }
+            }
+        }
+    }
+
+    // Draw the ghost piece (outline of where current piece will land)
+    if (state.ghostPiece && state.ghostPiece.shape) {
+        ctx.strokeStyle = '#666666'; // Gray outline
+        ctx.lineWidth = 2;
+        for (let row = 0; row < state.ghostPiece.shape.length; row++) {
+            for (let col = 0; col < state.ghostPiece.shape[row].length; col++) {
+                if (state.ghostPiece.shape[row][col] === 1) {
+                    const x = (state.ghostPiece.x + col) * TILE_SIZE;
+                    const y = (state.ghostPiece.y + row) * TILE_SIZE;
+                    ctx.strokeRect(x, y, TILE_SIZE - 1, TILE_SIZE - 1);
                 }
             }
         }

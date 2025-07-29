@@ -17,12 +17,17 @@ const (
 
 // GameState represents the data sent to the client for rendering.
 type GameState struct {
-	Board     [][]int `json:"board"`
-	NextPiece [][]int `json:"nextPiece"`
-	Score     int     `json:"score"`
-	Lines     int     `json:"lines"`
-	Level     int     `json:"level"`
-	GameOver  bool    `json:"gameOver"`
+	Board      [][]int `json:"board"`
+	NextPiece  [][]int `json:"nextPiece"`
+	GhostPiece struct {
+		Shape [][]int `json:"shape"`
+		X     int     `json:"x"`
+		Y     int     `json:"y"`
+	} `json:"ghostPiece"`
+	Score    int  `json:"score"`
+	Lines    int  `json:"lines"`
+	Level    int  `json:"level"`
+	GameOver bool `json:"gameOver"`
 }
 
 // Tetris represents a Tetris game instance
@@ -177,13 +182,25 @@ func (t *Tetris) GetState() GameState {
 		nextPieceShape = t.nextPiece.shape
 	}
 
+	// Calculate ghost piece position
+	ghostShape, ghostX, ghostY := t.calculateGhostPiece()
+
 	return GameState{
 		Board:     boardCopy,
 		NextPiece: nextPieceShape,
-		Score:     t.score,
-		Lines:     t.lines,
-		Level:     t.level,
-		GameOver:  t.gameOver,
+		GhostPiece: struct {
+			Shape [][]int `json:"shape"`
+			X     int     `json:"x"`
+			Y     int     `json:"y"`
+		}{
+			Shape: ghostShape,
+			X:     ghostX,
+			Y:     ghostY,
+		},
+		Score:    t.score,
+		Lines:    t.lines,
+		Level:    t.level,
+		GameOver: t.gameOver,
 	}
 }
 
@@ -198,6 +215,8 @@ func (t *Tetris) HandleWebInput(input string) {
 		t.movePiece(0, 1)
 	case "rotate":
 		t.rotatePiece()
+	case "hardDrop":
+		t.hardDrop()
 	}
 }
 
@@ -410,6 +429,66 @@ func (t *Tetris) rotatePiece() {
 
 	// If all kicks fail, revert
 	t.currentPiece.shape = originalShape
+}
+
+// hardDrop drops the current piece to the bottom instantly
+func (t *Tetris) hardDrop() {
+	if t.currentPiece == nil {
+		return
+	}
+
+	// Keep moving down until collision
+	for t.movePiece(0, 1) {
+		// Continue dropping
+	}
+
+	// Immediately place the piece
+	t.placePiece()
+}
+
+// calculateGhostPiece calculates where the current piece would land
+func (t *Tetris) calculateGhostPiece() ([][]int, int, int) {
+	if t.currentPiece == nil {
+		return nil, 0, 0
+	}
+
+	// Create a copy of the current piece
+	ghostX := t.currentPiece.x
+	ghostY := t.currentPiece.y
+
+	// Drop the ghost piece down until it would collide
+	for {
+		// Check if moving down one more would cause collision
+		if t.checkCollisionAt(t.currentPiece.shape, ghostX, ghostY+1) {
+			break
+		}
+		ghostY++
+	}
+
+	return t.currentPiece.shape, ghostX, ghostY
+}
+
+// checkCollisionAt checks if a shape would collide at specific coordinates
+func (t *Tetris) checkCollisionAt(shape [][]int, x, y int) bool {
+	for py := 0; py < len(shape); py++ {
+		for px := 0; px < len(shape[py]); px++ {
+			if shape[py][px] == 1 {
+				newX := x + px
+				newY := y + py
+
+				// Check boundaries
+				if newX < 0 || newX >= BoardWidth || newY >= BoardHeight {
+					return true
+				}
+
+				// Check collision with existing pieces (but not if above board)
+				if newY >= 0 && t.board[newY][newX] != 0 {
+					return true
+				}
+			}
+		}
+	}
+	return false
 }
 
 // checkCollision checks if a piece would collide
