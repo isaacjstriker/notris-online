@@ -36,7 +36,27 @@
             <!-- Game View -->
             <div id="game-view" class="hidden">
                 <button id="back-to-menu-btn">Back to Menu</button>
-                <canvas id="game-canvas" width="300" height="600"></canvas>
+                <div id="game-container">
+                    <div id="game-info">
+                        <div class="info-section">
+                            <h3>Score</h3>
+                            <div id="score-display">0</div>
+                        </div>
+                        <div class="info-section">
+                            <h3>Lines</h3>
+                            <div id="lines-display">0</div>
+                        </div>
+                        <div class="info-section">
+                            <h3>Level</h3>
+                            <div id="level-display">1</div>
+                        </div>
+                        <div class="info-section">
+                            <h3>Next Piece</h3>
+                            <canvas id="next-piece-canvas" width="120" height="120"></canvas>
+                        </div>
+                    </div>
+                    <canvas id="game-canvas" width="300" height="600"></canvas>
+                </div>
             </div>
 
             <!-- Login View -->

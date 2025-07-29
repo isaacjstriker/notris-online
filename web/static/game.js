@@ -52,6 +52,8 @@ function escapeHTML(str) {
 let ws;
 const canvas = document.getElementById('game-canvas');
 const ctx = canvas.getContext('2d');
+const nextPieceCanvas = document.getElementById('next-piece-canvas');
+const nextPieceCtx = nextPieceCanvas.getContext('2d');
 const TILE_SIZE = 30; // Size of each block in pixels
 
 const COLORS = [
@@ -83,6 +85,7 @@ function startGame(gameType) {
             ws.close();
         } else {
             renderGame(gameState);
+            updateGameInfo(gameState);
         }
     };
 
@@ -139,6 +142,39 @@ function renderGame(state) {
             }
         }
     }
+}
 
-    // You can add rendering for score, next piece, etc. here
+function updateGameInfo(state) {
+    document.getElementById('score-display').textContent = state.score;
+    document.getElementById('lines-display').textContent = state.lines;
+    document.getElementById('level-display').textContent = state.level;
+
+    // Render next piece
+    renderNextPiece(state.nextPiece);
+}
+
+function renderNextPiece(nextPiece) {
+    // Clear the next piece canvas
+    nextPieceCtx.fillStyle = '#000';
+    nextPieceCtx.fillRect(0, 0, nextPieceCanvas.width, nextPieceCanvas.height);
+
+    if (nextPiece) {
+        const pieceSize = 20; // Smaller tiles for next piece display
+        const offsetX = (nextPieceCanvas.width - nextPiece[0].length * pieceSize) / 2;
+        const offsetY = (nextPieceCanvas.height - nextPiece.length * pieceSize) / 2;
+
+        for (let row = 0; row < nextPiece.length; row++) {
+            for (let col = 0; col < nextPiece[row].length; col++) {
+                if (nextPiece[row][col] === 1) {
+                    nextPieceCtx.fillStyle = '#fff';
+                    nextPieceCtx.fillRect(
+                        offsetX + col * pieceSize,
+                        offsetY + row * pieceSize,
+                        pieceSize - 1,
+                        pieceSize - 1
+                    );
+                }
+            }
+        }
+    }
 }
