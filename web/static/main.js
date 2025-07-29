@@ -7,6 +7,7 @@ document.addEventListener('DOMContentLoaded', () => {
         login: document.getElementById('login-view'),
         register: document.getElementById('register-view'),
         leaderboard: document.getElementById('leaderboard-view'),
+        levelSelect: document.getElementById('level-select-view'),
     };
 
     const authNav = {
@@ -49,12 +50,14 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('show-register-btn').addEventListener('click', () => showView('register'));
     document.getElementById('show-login-btn').addEventListener('click', () => showView('login'));
     document.getElementById('back-to-menu-btn').addEventListener('click', () => {
-        showView('mainMenu');
-        if (ws) {
-            ws.close();
+        // Clean up the game before returning to menu
+        if (typeof cleanupGame === 'function') {
+            cleanupGame();
         }
+        showView('mainMenu');
     });
     document.getElementById('back-to-menu-from-leaderboard-btn').addEventListener('click', () => showView('mainMenu'));
+    document.getElementById('back-to-menu-from-level-select-btn').addEventListener('click', () => showView('mainMenu'));
 
     // Forms
     document.getElementById('login-form').addEventListener('submit', handleLogin);
@@ -62,12 +65,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Game Menu
     document.getElementById('singleplayer-btn').addEventListener('click', () => {
-        showView('game');
-        startGame('tetris');
+        showView('levelSelect');
     });
 
     document.getElementById('multiplayer-btn').addEventListener('click', () => {
         alert('Multiplayer is coming soon!');
+    });
+
+    // Level Selection
+    document.querySelectorAll('.level-btn').forEach(button => {
+        button.addEventListener('click', () => {
+            const startLevel = parseInt(button.dataset.level);
+            showView('game');
+            startGame('tetris', startLevel);
+        });
     });
 
     // Leaderboard

@@ -95,7 +95,6 @@ func NewTetris() *Tetris {
 		score:       0,
 		lines:       0,
 		level:       1,
-		dropSpeed:   20, // Ticks per drop
 		dropCounter: 0,
 	}
 
@@ -103,6 +102,9 @@ func NewTetris() *Tetris {
 	for i := range t.board {
 		t.board[i] = make([]int, BoardWidth)
 	}
+
+	// Set initial drop speed based on level 1
+	t.dropSpeed = t.getFramesPerDrop()
 
 	t.spawnPiece()
 	t.spawnNextPiece()
@@ -483,14 +485,60 @@ func (t *Tetris) clearLines() {
 			t.score += lineScores[linesCleared] * (t.level + 1)
 		}
 
-		// Level progression
-		t.level = (t.lines / 10) + 1
-		// Adjust drop speed based on level
-		newDropSpeed := 20 - (t.level - 1)
-		if newDropSpeed < 2 {
-			newDropSpeed = 2 // Set a minimum drop speed
+		// Level progression - increase level every 10 lines
+		newLevel := (t.lines / 10) + 1
+		if newLevel != t.level {
+			t.level = newLevel
+			// Update drop speed using traditional Tetris frames-per-drop system
+			t.dropSpeed = t.getFramesPerDrop()
 		}
-		t.dropSpeed = newDropSpeed
+	}
+}
+
+// getFramesPerDrop returns the number of game ticks before a piece drops one row
+// This implements the traditional Tetris speed curve
+func (t *Tetris) getFramesPerDrop() int {
+	// Traditional Tetris speed table (frames per drop)
+	speedTable := []int{
+		48, // Level 1
+		43, // Level 2
+		38, // Level 3
+		33, // Level 4
+		28, // Level 5
+		23, // Level 6
+		18, // Level 7
+		13, // Level 8
+		8,  // Level 9
+		6,  // Level 10
+		5,  // Level 11-12
+		5,  // Level 13-15
+		4,  // Level 16-18
+		4,  // Level 19-28
+		3,  // Level 29+
+	}
+
+	if t.level <= 0 {
+		return speedTable[0]
+	} else if t.level <= 10 {
+		return speedTable[t.level-1]
+	} else if t.level <= 12 {
+		return 5
+	} else if t.level <= 15 {
+		return 5
+	} else if t.level <= 18 {
+		return 4
+	} else if t.level <= 28 {
+		return 4
+	} else {
+		return 3 // Level 29+, maximum speed
+	}
+}
+
+// SetLevel allows setting the starting level
+func (t *Tetris) SetLevel(level int) {
+	if level >= 1 && level <= 29 {
+		t.level = level
+		t.dropSpeed = t.getFramesPerDrop()
 	}
 }
 

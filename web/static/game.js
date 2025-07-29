@@ -67,7 +67,35 @@ const COLORS = [
     '#0000FF', // 7: J piece (Blue)
 ];
 
-function startGame(gameType) {
+function cleanupGame() {
+    // Close existing WebSocket connection
+    if (ws && ws.readyState !== WebSocket.CLOSED) {
+        ws.close();
+    }
+    ws = null;
+
+    // Remove event listeners
+    document.removeEventListener('keydown', handleKeyPress);
+
+    // Clear canvas if it exists
+    if (typeof ctx !== 'undefined' && ctx) {
+        ctx.fillStyle = '#000';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
+
+    // Clear next piece canvas if it exists
+    if (typeof nextPieceCtx !== 'undefined' && nextPieceCtx) {
+        nextPieceCtx.fillStyle = '#000';
+        nextPieceCtx.fillRect(0, 0, nextPieceCanvas.width, nextPieceCanvas.height);
+    }
+
+    console.log('Game cleaned up');
+}
+
+function startGame(gameType, startLevel = 1) {
+    // Clean up any existing game first
+    cleanupGame();
+
     const protocol = window.location.protocol === 'https' ? 'wss' : 'ws';
     const wsURL = `${protocol}://${window.location.host}/ws/game`;
 
@@ -76,6 +104,11 @@ function startGame(gameType) {
     ws.onopen = () => {
         console.log(`Connected to ${gameType} game server.`);
         document.addEventListener('keydown', handleKeyPress);
+
+        // Send the starting level to the server
+        if (startLevel > 1) {
+            ws.send(JSON.stringify({ type: 'setLevel', level: startLevel }));
+        }
     };
 
     ws.onmessage = (event) => {
@@ -91,9 +124,7 @@ function startGame(gameType) {
 
     ws.onclose = () => {
         console.log('Disconnected from game server.');
-        document.removeEventListener('keydown', handleKeyPress);
-        // Show main menu or a "disconnected" message
-        // For now, just log it.
+        // Cleanup is handled by cleanupGame() function
     };
 
     ws.onerror = (error) => {

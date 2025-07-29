@@ -177,6 +177,63 @@ input {
     text-align: center;
 }
 
+#level-select-view {
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 30px;
+}
+
+#level-select-view h2 {
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 1.8em;
+    color: #fff;
+    margin: 0;
+    border: 2px solid #fff;
+    padding: 10px 20px;
+    background-color: #000;
+}
+
+#level-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    border: 2px solid #fff;
+    padding: 20px;
+    background-color: #000;
+}
+
+.level-row {
+    display: flex;
+    gap: 10px;
+}
+
+.level-btn {
+    width: 60px;
+    height: 60px;
+    background-color: #000;
+    color: #fff;
+    border: 2px solid #fff;
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 1.5em;
+    font-weight: bold;
+    cursor: pointer;
+    transition: background-color 0.3s, color 0.3s;
+}
+
+.level-btn:hover {
+    background-color: #fff;
+    color: #000;
+}
+
+.level-btn-placeholder {
+    width: 60px;
+    height: 60px;
+    background-color: #000;
+    border: 2px solid #333;
+}
+
 .leaderboard-controls {
     margin-bottom: 20px;
 }
