@@ -10,7 +10,7 @@
 
 <body>
     <div id="app-container">
-        <header>
+        <header id="main-header">
             <h1>Dev Ware</h1>
             <nav id="auth-nav">
                 <button id="login-nav-btn" class="nav-btn">Login</button>
@@ -61,27 +61,63 @@
 
             <!-- Game View -->
             <div id="game-view" class="hidden">
-                <button id="back-to-menu-btn">Back to Menu</button>
+                <div id="game-header">
+                    <h1>TETRIS</h1>
+                    <button id="game-menu-btn" class="nav-btn">Menu</button>
+                </div>
                 <div id="game-container">
                     <div id="game-info">
                         <div class="info-section">
                             <h3>Score</h3>
-                            <div id="score-display">0</div>
-                        </div>
-                        <div class="info-section">
-                            <h3>Lines</h3>
-                            <div id="lines-display">0</div>
+                            <div id="score">0</div>
                         </div>
                         <div class="info-section">
                             <h3>Level</h3>
-                            <div id="level-display">1</div>
+                            <div id="level">1</div>
                         </div>
                         <div class="info-section">
-                            <h3>Next Piece</h3>
-                            <canvas id="next-piece-canvas" width="120" height="120"></canvas>
+                            <h3>Lines</h3>
+                            <div id="lines">0</div>
+                        </div>
+                        <div class="info-section">
+                            <h3>Statistics</h3>
+                            <div id="time">00:00</div>
+                            <div id="ppm">0 PPM</div>
+                            <div id="line-stats">
+                                <div>Single: <span id="stat-single">0</span></div>
+                                <div>Double: <span id="stat-double">0</span></div>
+                                <div>Triple: <span id="stat-triple">0</span></div>
+                                <div>Tetris: <span id="stat-tetris">0</span></div>
+                            </div>
                         </div>
                     </div>
-                    <canvas id="game-canvas" width="300" height="600"></canvas>
+                    <canvas id="game-canvas" width="400" height="800"></canvas>
+                    <div id="game-info-right">
+                        <div class="info-section">
+                            <h3>Next</h3>
+                            <canvas id="next-piece-canvas" width="120" height="80"></canvas>
+                        </div>
+                        <div class="info-section">
+                            <h3>Controls</h3>
+                            <div style="font-size: 0.9em; text-align: left;">
+                                <div>← → Move</div>
+                                <div>↓ Soft Drop</div>
+                                <div>↑ Hard Drop</div>
+                                <div>Space Rotate</div>
+                                <div>P/Esc Pause</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Game Menu Overlay -->
+                <div id="game-menu-overlay" class="hidden">
+                    <div id="game-menu-content">
+                        <h2>Game Menu</h2>
+                        <button id="resume-game-btn" class="menu-btn">Resume Game</button>
+                        <button id="restart-game-btn" class="menu-btn">Restart Game</button>
+                        <button id="back-to-main-menu-btn" class="menu-btn">Back to Main Menu</button>
+                    </div>
                 </div>
             </div>
 

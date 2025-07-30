@@ -54,7 +54,7 @@ const canvas = document.getElementById('game-canvas');
 const ctx = canvas.getContext('2d');
 const nextPieceCanvas = document.getElementById('next-piece-canvas');
 const nextPieceCtx = nextPieceCanvas.getContext('2d');
-const TILE_SIZE = 30; // Size of each block in pixels
+const TILE_SIZE = 40; // Size of each block in pixels (400px canvas / 10 tiles = 40px per tile)
 
 const COLORS = [
     '#000000', // 0: Background
@@ -114,11 +114,17 @@ function startGame(gameType, startLevel = 1) {
     ws.onmessage = (event) => {
         const gameState = JSON.parse(event.data);
         if (gameState.type === 'gameOver') {
-            alert(`Game Over! Final Score: ${gameState.score}`);
+            showGameOverScreen(gameState.score);
             ws.close();
         } else {
             renderGame(gameState);
             updateGameInfo(gameState);
+
+            // Check for game over in normal game state
+            if (gameState.gameOver) {
+                showGameOverScreen(gameState.score, gameState.stats);
+                ws.close();
+            }
         }
     };
 
@@ -154,6 +160,24 @@ function handleKeyPress(event) {
         case 'X':
             action = 'rotate';
             break;
+        case 'Escape':
+            // Toggle game menu
+            const gameMenuOverlay = document.getElementById('game-menu-overlay');
+            if (gameMenuOverlay.classList.contains('hidden')) {
+                // Open game menu and pause
+                gameMenuOverlay.classList.remove('hidden');
+                if (ws && ws.readyState === WebSocket.OPEN) {
+                    ws.send(JSON.stringify({ type: 'input', key: 'pause' }));
+                }
+            } else {
+                // Close game menu and resume
+                gameMenuOverlay.classList.add('hidden');
+                if (ws && ws.readyState === WebSocket.OPEN) {
+                    ws.send(JSON.stringify({ type: 'input', key: 'pause' }));
+                }
+            }
+            event.preventDefault();
+            return;
         default:
             return;
     }
@@ -180,7 +204,7 @@ function renderGame(state) {
     }
 
     // Draw the ghost piece (outline of where current piece will land)
-    if (state.ghostPiece && state.ghostPiece.shape) {
+    if (state.ghostPiece && state.ghostPiece.shape && !state.paused) {
         ctx.strokeStyle = '#666666'; // Gray outline
         ctx.lineWidth = 2;
         for (let row = 0; row < state.ghostPiece.shape.length; row++) {
@@ -196,12 +220,114 @@ function renderGame(state) {
 }
 
 function updateGameInfo(state) {
-    document.getElementById('score-display').textContent = state.score;
-    document.getElementById('lines-display').textContent = state.lines;
-    document.getElementById('level-display').textContent = state.level;
+    document.getElementById('score').textContent = state.score;
+    document.getElementById('lines').textContent = state.lines;
+    document.getElementById('level').textContent = state.level;
+
+    // Update statistics if available
+    if (state.stats) {
+        const minutes = Math.floor(state.stats.timePlayed / 60);
+        const seconds = state.stats.timePlayed % 60;
+        const timeStr = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+
+        document.getElementById('time').textContent = timeStr;
+        document.getElementById('ppm').textContent = `${state.stats.ppm.toFixed(1)} PPM`;
+        document.getElementById('stat-single').textContent = state.stats.lineStats[0];
+        document.getElementById('stat-double').textContent = state.stats.lineStats[1];
+        document.getElementById('stat-triple').textContent = state.stats.lineStats[2];
+        document.getElementById('stat-tetris').textContent = state.stats.lineStats[3];
+    }
 
     // Render next piece
     renderNextPiece(state.nextPiece);
+}
+
+function showGameOverScreen(finalScore, stats = null) {
+    // Create game over overlay
+    const overlay = document.createElement('div');
+    overlay.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.8);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 1000;
+        font-family: 'Courier New', monospace;
+        color: white;
+    `;
+
+    const gameOverContent = document.createElement('div');
+    gameOverContent.style.cssText = `
+        background: #000;
+        border: 2px solid #fff;
+        padding: 30px;
+        text-align: center;
+        max-width: 400px;
+        width: 90%;
+    `;
+
+    let content = `
+        <h2 style="margin-top: 0; color: #fff;">GAME OVER</h2>
+        <p>Final Score: <strong>${finalScore}</strong></p>
+    `;
+
+    if (stats) {
+        const minutes = Math.floor(stats.timePlayed / 60);
+        const seconds = stats.timePlayed % 60;
+        const timeStr = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+
+        content += `
+            <div style="margin: 20px 0; text-align: left;">
+                <div>Time Played: ${timeStr}</div>
+                <div>Pieces Placed: ${stats.piecesPlaced}</div>
+                <div>Pieces per Minute: ${stats.ppm.toFixed(1)}</div>
+                <div style="margin-top: 10px;">Line Clears:</div>
+                <div style="margin-left: 20px;">
+                    <div>Singles: ${stats.lineStats[0]}</div>
+                    <div>Doubles: ${stats.lineStats[1]}</div>
+                    <div>Triples: ${stats.lineStats[2]}</div>
+                    <div>Tetris: ${stats.lineStats[3]}</div>
+                </div>
+            </div>
+        `;
+    }
+
+    content += `
+        <div style="margin-top: 20px;">
+            <button id="restart-game-btn" style="margin-right: 10px; padding: 8px 16px; background: #333; color: #fff; border: 1px solid #fff; font-family: 'Courier New', monospace;">Play Again</button>
+            <button id="back-to-menu-from-gameover-btn" style="padding: 8px 16px; background: #333; color: #fff; border: 1px solid #fff; font-family: 'Courier New', monospace;">Main Menu</button>
+        </div>
+    `;
+
+    gameOverContent.innerHTML = content;
+    overlay.appendChild(gameOverContent);
+    document.body.appendChild(overlay);
+
+    // Add event listeners
+    document.getElementById('restart-game-btn').addEventListener('click', () => {
+        document.body.removeChild(overlay);
+        // Start a new game with same level
+        const lastLevel = localStorage.getItem('lastSelectedLevel') || 1;
+        startGame('tetris', parseInt(lastLevel));
+    });
+
+    document.getElementById('back-to-menu-from-gameover-btn').addEventListener('click', () => {
+        document.body.removeChild(overlay);
+        if (typeof cleanupGame === 'function') {
+            cleanupGame();
+        }
+        // This function should be available from main.js
+        if (typeof showView === 'function') {
+            showView('mainMenu');
+        } else {
+            // Fallback - reload the page
+            window.location.reload();
+        }
+    });
 }
 
 function renderNextPiece(nextPiece) {

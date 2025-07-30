@@ -19,11 +19,44 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     function showView(viewName) {
-        Object.values(views).forEach(view => view.classList.add('hidden'));
-        if (views[viewName]) {
-            views[viewName].classList.remove('hidden');
+        // Hide all views
+        Object.values(views).forEach(view => {
+            if (view) {
+                view.classList.add('hidden');
+                view.style.display = 'none';
+            }
+        });
+
+        // Show/hide main header based on view
+        const mainHeader = document.getElementById('main-header');
+        if (viewName === 'game') {
+            mainHeader.style.display = 'none';
+        } else {
+            mainHeader.style.display = 'flex';
         }
-    }
+
+        // Show the requested view
+        let targetView = null;
+        if (viewName === 'mainMenu' || viewName === 'main-menu') {
+            targetView = views.mainMenu;
+        } else if (viewName === 'game') {
+            targetView = views.game;
+        } else if (viewName === 'login') {
+            targetView = views.login;
+        } else if (viewName === 'register') {
+            targetView = views.register;
+        } else if (viewName === 'leaderboard') {
+            targetView = views.leaderboard;
+        } else if (viewName === 'levelSelect') {
+            targetView = views.levelSelect;
+        }
+
+        if (targetView) {
+            targetView.classList.remove('hidden');
+            targetView.style.display = '';
+        }
+    }    // Make showView globally accessible for game over screen
+    window.showView = showView;
 
     function updateAuthUI() {
         const token = getAuthToken();
@@ -49,11 +82,37 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.getElementById('show-register-btn').addEventListener('click', () => showView('register'));
     document.getElementById('show-login-btn').addEventListener('click', () => showView('login'));
-    document.getElementById('back-to-menu-btn').addEventListener('click', () => {
+
+    // Game menu functionality
+    document.getElementById('game-menu-btn').addEventListener('click', () => {
+        document.getElementById('game-menu-overlay').classList.remove('hidden');
+        // Pause the game when menu is opened
+        if (typeof ws !== 'undefined' && ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type: 'input', key: 'pause' }));
+        }
+    });
+
+    document.getElementById('resume-game-btn').addEventListener('click', () => {
+        document.getElementById('game-menu-overlay').classList.add('hidden');
+        // Resume the game
+        if (typeof ws !== 'undefined' && ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type: 'input', key: 'pause' }));
+        }
+    });
+
+    document.getElementById('restart-game-btn').addEventListener('click', () => {
+        document.getElementById('game-menu-overlay').classList.add('hidden');
+        // Get the last selected level and restart
+        const lastLevel = parseInt(localStorage.getItem('lastSelectedLevel')) || 1;
+        startGame('tetris', lastLevel);
+    });
+
+    document.getElementById('back-to-main-menu-btn').addEventListener('click', () => {
         // Clean up the game before returning to menu
         if (typeof cleanupGame === 'function') {
             cleanupGame();
         }
+        document.getElementById('game-menu-overlay').classList.add('hidden');
         showView('mainMenu');
     });
     document.getElementById('back-to-menu-from-leaderboard-btn').addEventListener('click', () => showView('mainMenu'));
@@ -76,6 +135,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('.level-btn').forEach(button => {
         button.addEventListener('click', () => {
             const startLevel = parseInt(button.dataset.level);
+            localStorage.setItem('lastSelectedLevel', startLevel);
             showView('game');
             startGame('tetris', startLevel);
         });
@@ -86,8 +146,6 @@ document.addEventListener('DOMContentLoaded', () => {
         showView('leaderboard');
         await loadLeaderboard();
     });
-
-
 
     // --- Initialization ---
     updateAuthUI();

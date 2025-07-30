@@ -28,17 +28,33 @@ type GameState struct {
 	Lines    int  `json:"lines"`
 	Level    int  `json:"level"`
 	GameOver bool `json:"gameOver"`
+	Paused   bool `json:"paused"`
+	Stats    struct {
+		TimePlayed   int     `json:"timePlayed"` // seconds
+		PiecesPlaced int     `json:"piecesPlaced"`
+		PPM          float64 `json:"ppm"`       // pieces per minute
+		LineStats    [4]int  `json:"lineStats"` // [singles, doubles, triples, tetris]
+	} `json:"stats"`
 }
 
 // Tetris represents a Tetris game instance
 type Tetris struct {
-	board        [][]int
-	currentPiece *Piece
-	nextPiece    *Piece
-	score        int
-	lines        int
-	level        int
-	gameOver     bool
+	board         [][]int
+	currentPiece  *Piece
+	nextPiece     *Piece
+	score         int
+	lines         int
+	level         int
+	startingLevel int
+	gameOver      bool
+	paused        bool
+
+	// Game statistics
+	startTime     time.Time
+	pausedTime    time.Duration // Total time spent paused
+	lastPauseTime time.Time     // When the current pause started
+	piecesPlaced  int
+	lineStats     [4]int // [singles, doubles, triples, tetris]
 
 	// For web socket communication
 	dropCounter int
@@ -96,11 +112,14 @@ var pieceColors = []string{"##", "@@", "**", "%%", "&&", "++", "=="}
 // NewTetris creates a new Tetris game
 func NewTetris() *Tetris {
 	t := &Tetris{
-		board:       make([][]int, BoardHeight),
-		score:       0,
-		lines:       0,
-		level:       1,
-		dropCounter: 0,
+		board:         make([][]int, BoardHeight),
+		score:         0,
+		lines:         0,
+		level:         1,
+		startingLevel: 1,
+		dropCounter:   0,
+		startTime:     time.Now(),
+		piecesPlaced:  0,
 	}
 
 	// Initialize board
@@ -185,6 +204,20 @@ func (t *Tetris) GetState() GameState {
 	// Calculate ghost piece position
 	ghostShape, ghostX, ghostY := t.calculateGhostPiece()
 
+	// Calculate statistics
+	totalElapsed := time.Since(t.startTime)
+	currentPauseTime := time.Duration(0)
+	if t.paused && !t.lastPauseTime.IsZero() {
+		currentPauseTime = time.Since(t.lastPauseTime)
+	}
+	actualPlayTime := totalElapsed - t.pausedTime - currentPauseTime
+	timePlayed := int(actualPlayTime.Seconds())
+
+	var ppm float64
+	if timePlayed > 0 {
+		ppm = float64(t.piecesPlaced) / (float64(timePlayed) / 60.0)
+	}
+
 	return GameState{
 		Board:     boardCopy,
 		NextPiece: nextPieceShape,
@@ -201,6 +234,18 @@ func (t *Tetris) GetState() GameState {
 		Lines:    t.lines,
 		Level:    t.level,
 		GameOver: t.gameOver,
+		Paused:   t.paused,
+		Stats: struct {
+			TimePlayed   int     `json:"timePlayed"`
+			PiecesPlaced int     `json:"piecesPlaced"`
+			PPM          float64 `json:"ppm"`
+			LineStats    [4]int  `json:"lineStats"`
+		}{
+			TimePlayed:   timePlayed,
+			PiecesPlaced: t.piecesPlaced,
+			PPM:          ppm,
+			LineStats:    t.lineStats,
+		},
 	}
 }
 
@@ -208,15 +253,27 @@ func (t *Tetris) GetState() GameState {
 func (t *Tetris) HandleWebInput(input string) {
 	switch input {
 	case "left":
-		t.movePiece(-1, 0)
+		if !t.paused {
+			t.movePiece(-1, 0)
+		}
 	case "right":
-		t.movePiece(1, 0)
+		if !t.paused {
+			t.movePiece(1, 0)
+		}
 	case "down":
-		t.movePiece(0, 1)
+		if !t.paused {
+			t.movePiece(0, 1)
+		}
 	case "rotate":
-		t.rotatePiece()
+		if !t.paused {
+			t.rotatePiece()
+		}
 	case "hardDrop":
-		t.hardDrop()
+		if !t.paused {
+			t.hardDrop()
+		}
+	case "pause":
+		t.togglePause()
 	}
 }
 
@@ -232,7 +289,7 @@ func (t *Tetris) GetScore() int {
 
 // Update is the main game tick function, replacing the old game loop.
 func (t *Tetris) Update() {
-	if t.gameOver {
+	if t.gameOver || t.paused {
 		return
 	}
 
@@ -247,6 +304,23 @@ func (t *Tetris) Update() {
 			t.spawnPiece()
 			// The spawnPiece function will set gameOver if a new piece can't be placed.
 		}
+	}
+}
+
+// togglePause toggles the pause state
+func (t *Tetris) togglePause() {
+	if !t.gameOver {
+		if t.paused {
+			// Resuming: add the pause duration to total paused time
+			if !t.lastPauseTime.IsZero() {
+				t.pausedTime += time.Since(t.lastPauseTime)
+				t.lastPauseTime = time.Time{} // Reset
+			}
+		} else {
+			// Pausing: record when the pause started
+			t.lastPauseTime = time.Now()
+		}
+		t.paused = !t.paused
 	}
 }
 
@@ -531,6 +605,9 @@ func (t *Tetris) placePiece() {
 			}
 		}
 	}
+
+	// Track statistics
+	t.piecesPlaced++
 }
 
 // clearLines removes completed lines and updates score
@@ -558,14 +635,19 @@ func (t *Tetris) clearLines() {
 	if linesCleared > 0 {
 		t.lines += linesCleared
 
+		// Track line statistics
+		if linesCleared >= 1 && linesCleared <= 4 {
+			t.lineStats[linesCleared-1]++
+		}
+
 		// Score calculation (similar to original Tetris)
 		lineScores := []int{0, 40, 100, 300, 1200}
 		if linesCleared < len(lineScores) {
 			t.score += lineScores[linesCleared] * (t.level + 1)
 		}
 
-		// Level progression - increase level every 10 lines
-		newLevel := (t.lines / 10) + 1
+		// Level progression - increase level every 10 lines from starting level
+		newLevel := t.startingLevel + (t.lines / 10)
 		if newLevel != t.level {
 			t.level = newLevel
 			// Update drop speed using traditional Tetris frames-per-drop system
@@ -614,9 +696,11 @@ func (t *Tetris) getFramesPerDrop() int {
 }
 
 // SetLevel allows setting the starting level
+// SetLevel allows setting the starting level
 func (t *Tetris) SetLevel(level int) {
 	if level >= 1 && level <= 29 {
 		t.level = level
+		t.startingLevel = level
 		t.dropSpeed = t.getFramesPerDrop()
 	}
 }
