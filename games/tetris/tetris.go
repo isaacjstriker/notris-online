@@ -19,6 +19,7 @@ const (
 type GameState struct {
 	Board      [][]int `json:"board"`
 	NextPiece  [][]int `json:"nextPiece"`
+	HoldPiece  [][]int `json:"holdPiece"`
 	GhostPiece struct {
 		Shape [][]int `json:"shape"`
 		X     int     `json:"x"`
@@ -42,12 +43,14 @@ type Tetris struct {
 	board         [][]int
 	currentPiece  *Piece
 	nextPiece     *Piece
+	holdPiece     *Piece
 	score         int
 	lines         int
 	level         int
 	startingLevel int
 	gameOver      bool
 	paused        bool
+	holdUsed      bool // Prevents multiple holds per piece
 
 	// Game statistics
 	startTime     time.Time
@@ -154,6 +157,9 @@ func (t *Tetris) spawnPiece() {
 		}
 	}
 
+	// Reset hold usage for the new piece
+	t.holdUsed = false
+
 	// Check game over
 	if t.checkCollision(t.currentPiece, 0, 0) {
 		t.gameOver = true
@@ -201,6 +207,11 @@ func (t *Tetris) GetState() GameState {
 		nextPieceShape = t.nextPiece.shape
 	}
 
+	var holdPieceShape [][]int
+	if t.holdPiece != nil {
+		holdPieceShape = t.holdPiece.shape
+	}
+
 	// Calculate ghost piece position
 	ghostShape, ghostX, ghostY := t.calculateGhostPiece()
 
@@ -221,6 +232,7 @@ func (t *Tetris) GetState() GameState {
 	return GameState{
 		Board:     boardCopy,
 		NextPiece: nextPieceShape,
+		HoldPiece: holdPieceShape,
 		GhostPiece: struct {
 			Shape [][]int `json:"shape"`
 			X     int     `json:"x"`
@@ -271,6 +283,10 @@ func (t *Tetris) HandleWebInput(input string) {
 	case "hardDrop":
 		if !t.paused {
 			t.hardDrop()
+		}
+	case "hold":
+		if !t.paused {
+			t.holdCurrentPiece()
 		}
 	case "pause":
 		t.togglePause()
@@ -518,6 +534,55 @@ func (t *Tetris) hardDrop() {
 
 	// Immediately place the piece
 	t.placePiece()
+}
+
+// holdCurrentPiece swaps the current piece with the held piece
+func (t *Tetris) holdCurrentPiece() {
+	if t.currentPiece == nil || t.holdUsed {
+		return
+	}
+
+	if t.holdPiece == nil {
+		// First hold - save current piece and spawn next piece
+		t.holdPiece = &Piece{
+			shape:     copyShape(pieces[t.currentPiece.pieceType]),
+			x:         0,
+			y:         0,
+			rotation:  0,
+			pieceType: t.currentPiece.pieceType,
+		}
+		t.spawnPiece()
+	} else {
+		// Swap current piece with held piece
+		heldPieceType := t.holdPiece.pieceType
+
+		// Save current piece to hold
+		t.holdPiece = &Piece{
+			shape:     copyShape(pieces[t.currentPiece.pieceType]),
+			x:         0,
+			y:         0,
+			rotation:  0,
+			pieceType: t.currentPiece.pieceType,
+		}
+
+		// Set held piece as current piece
+		t.currentPiece = &Piece{
+			shape:     copyShape(pieces[heldPieceType]),
+			x:         BoardWidth/2 - 1,
+			y:         0,
+			rotation:  0,
+			pieceType: heldPieceType,
+		}
+
+		// Check if the swapped piece can be placed
+		if t.checkCollision(t.currentPiece, 0, 0) {
+			t.gameOver = true
+			return
+		}
+	}
+
+	// Mark hold as used for this piece
+	t.holdUsed = true
 }
 
 // calculateGhostPiece calculates where the current piece would land

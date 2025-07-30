@@ -70,3 +70,57 @@ func createJWT(userID int, username, secret string) (string, error) {
 
 	return token.SignedString([]byte(secret))
 }
+
+// UserInfo represents validated user information from JWT
+type UserInfo struct {
+	UserID   int    `json:"user_id"`
+	Username string `json:"username"`
+}
+
+// validateJWT validates a JWT token and returns user information
+func (s *APIServer) validateJWT(tokenString string) (*UserInfo, error) {
+	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, jwt.ErrSignatureInvalid
+		}
+		return []byte(s.config.JWTSecret), nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	if !token.Valid {
+		return nil, jwt.ErrTokenNotValidYet
+	}
+
+	claims, ok := token.Claims.(jwt.MapClaims)
+	if !ok {
+		return nil, jwt.ErrInvalidKey
+	}
+
+	userID, ok := claims["userID"].(float64) // JSON numbers are float64
+	if !ok {
+		return nil, jwt.ErrInvalidKey
+	}
+
+	username, ok := claims["username"].(string)
+	if !ok {
+		return nil, jwt.ErrInvalidKey
+	}
+
+	return &UserInfo{
+		UserID:   int(userID),
+		Username: username,
+	}, nil
+}
+
+// handleLogout handles user logout
+func (s *APIServer) handleLogout(w http.ResponseWriter, r *http.Request) {
+	// For JWT, logout is handled client-side by deleting the token
+	// We could maintain a blacklist in the future if needed
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"success": true,
+		"message": "Logged out successfully",
+	})
+}

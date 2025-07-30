@@ -179,35 +179,67 @@ func (db *DB) QueryRow(query string, args ...interface{}) *sql.Row {
 
 // CreateUser creates a new user in the database
 func (db *DB) CreateUser(username, email, passwordHash string) (*User, error) {
-	query := `
-		INSERT INTO users (username, email, password_hash)
-		VALUES (?, ?, ?)
-	`
+	var query string
+	var err error
+	
+	if db.dbType == "postgres" {
+		query = `
+			INSERT INTO users (username, email, password_hash)
+			VALUES ($1, $2, $3)
+			RETURNING id, created_at
+		`
+		var user User
+		err = db.conn.QueryRow(query, username, email, passwordHash).Scan(&user.ID, &user.CreatedAt)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create user: %w", err)
+		}
+		
+		return &User{
+			ID:        user.ID,
+			Username:  username,
+			Email:     email,
+			CreatedAt: user.CreatedAt,
+		}, nil
+	} else {
+		// SQLite version
+		query = `
+			INSERT INTO users (username, email, password_hash)
+			VALUES (?, ?, ?)
+		`
+		result, err := db.conn.Exec(query, username, email, passwordHash)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create user: %w", err)
+		}
 
-	result, err := db.conn.Exec(query, username, email, passwordHash)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create user: %w", err)
+		id, err := result.LastInsertId()
+		if err != nil {
+			return nil, fmt.Errorf("failed to get user ID: %w", err)
+		}
+
+		return &User{
+			ID:        int(id),
+			Username:  username,
+			Email:     email,
+			CreatedAt: time.Now(),
+		}, nil
 	}
-
-	id, err := result.LastInsertId()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get user ID: %w", err)
-	}
-
-	return &User{
-		ID:        int(id),
-		Username:  username,
-		Email:     email,
-		CreatedAt: time.Now(),
-	}, nil
 }
 
 // GetUserByUsername retrieves a user by username
 func (db *DB) GetUserByUsername(username string) (*User, string, error) {
-	query := `
-		SELECT id, username, email, password_hash, created_at, last_login
-		FROM users WHERE username = ?
-	`
+	var query string
+	
+	if db.dbType == "postgres" {
+		query = `
+			SELECT id, username, email, password_hash, created_at, last_login
+			FROM users WHERE username = $1
+		`
+	} else {
+		query = `
+			SELECT id, username, email, password_hash, created_at, last_login
+			FROM users WHERE username = ?
+		`
+	}
 
 	var user User
 	var passwordHash string
@@ -224,11 +256,19 @@ func (db *DB) GetUserByUsername(username string) (*User, string, error) {
 
 // SaveGameScore saves a game score to the database
 func (db *DB) SaveGameScore(userID int, gameType string, score int, metadata map[string]interface{}) error {
-	// Corrected query to use the 'metadata' column
-	query := `
-        INSERT INTO game_scores (user_id, game_type, score, metadata, played_at)
-        VALUES (?, ?, ?, ?, ?)
-    `
+	var query string
+	
+	if db.dbType == "postgres" {
+		query = `
+			INSERT INTO game_scores (user_id, game_type, score, metadata, played_at)
+			VALUES ($1, $2, $3, $4, $5)
+		`
+	} else {
+		query = `
+			INSERT INTO game_scores (user_id, game_type, score, metadata, played_at)
+			VALUES (?, ?, ?, ?, ?)
+		`
+	}
 
 	var metadataValue interface{}
 	var err error

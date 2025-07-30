@@ -46,10 +46,7 @@ function getLeaderboard(gameType, limit = 15) {
     return apiRequest('GET', `/leaderboard/${gameType}?limit=${limit}`);
 }
 
-// Placeholder for submitting a score
+// Submit a game score
 function submitScore(gameType, score, metadata = {}) {
-    // This endpoint needs to be created in the Go backend
-    // return apiRequest('POST', '/scores', { game_type: gameType, score, metadata });
-    console.log(`Submitting score for ${gameType}: ${score}`);
-    return Promise.resolve();
+    return apiRequest('POST', '/scores', { game_type: gameType, score, metadata });
 }

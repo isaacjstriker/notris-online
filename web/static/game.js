@@ -8,7 +8,7 @@ async function loadLeaderboard() {
 
     try {
         const entries = await getLeaderboard(gameType);
-        if (entries.length === 0) {
+        if (!entries || entries.length === 0) {
             contentDiv.innerHTML = '<p>No scores yet. Be the first!</p>';
             return;
         }
@@ -54,6 +54,8 @@ const canvas = document.getElementById('game-canvas');
 const ctx = canvas.getContext('2d');
 const nextPieceCanvas = document.getElementById('next-piece-canvas');
 const nextPieceCtx = nextPieceCanvas.getContext('2d');
+const holdPieceCanvas = document.getElementById('hold-piece-canvas');
+const holdPieceCtx = holdPieceCanvas.getContext('2d');
 const TILE_SIZE = 40; // Size of each block in pixels (400px canvas / 10 tiles = 40px per tile)
 
 const COLORS = [
@@ -87,6 +89,12 @@ function cleanupGame() {
     if (typeof nextPieceCtx !== 'undefined' && nextPieceCtx) {
         nextPieceCtx.fillStyle = '#000';
         nextPieceCtx.fillRect(0, 0, nextPieceCanvas.width, nextPieceCanvas.height);
+    }
+
+    // Clear hold piece canvas if it exists
+    if (typeof holdPieceCtx !== 'undefined' && holdPieceCtx) {
+        holdPieceCtx.fillStyle = '#000';
+        holdPieceCtx.fillRect(0, 0, holdPieceCanvas.width, holdPieceCanvas.height);
     }
 
     console.log('Game cleaned up');
@@ -159,6 +167,11 @@ function handleKeyPress(event) {
         case 'x':
         case 'X':
             action = 'rotate';
+            break;
+        case 'c':
+        case 'C':
+        case 'Shift': // Common hold keys in Tetris games
+            action = 'hold';
             break;
         case 'Escape':
             // Toggle game menu
@@ -240,9 +253,34 @@ function updateGameInfo(state) {
 
     // Render next piece
     renderNextPiece(state.nextPiece);
+    
+    // Render hold piece
+    renderHoldPiece(state.holdPiece);
+
+    // Render hold piece
+    renderHoldPiece(state.holdPiece);
 }
 
 function showGameOverScreen(finalScore, stats = null) {
+    // Submit score to leaderboard if user is logged in
+    const token = getAuthToken();
+    if (token) {
+        const metadata = stats ? {
+            time_played: stats.timePlayed,
+            pieces_placed: stats.piecesPlaced,
+            ppm: stats.ppm,
+            line_stats: stats.lineStats
+        } : {};
+        
+        submitScore('tetris', finalScore, metadata)
+            .then(() => {
+                console.log('Score submitted successfully!');
+            })
+            .catch(error => {
+                console.error('Failed to submit score:', error);
+            });
+    }
+
     // Create game over overlay
     const overlay = document.createElement('div');
     overlay.style.cssText = `
@@ -274,6 +312,13 @@ function showGameOverScreen(finalScore, stats = null) {
         <h2 style="margin-top: 0; color: #fff;">GAME OVER</h2>
         <p>Final Score: <strong>${finalScore}</strong></p>
     `;
+
+    // Add authentication status message
+    if (token) {
+        content += `<p style="color: #00ff00; font-size: 0.9em;">✓ Score submitted to leaderboard!</p>`;
+    } else {
+        content += `<p style="color: #ffaa00; font-size: 0.9em;">Login to save your score to the leaderboard</p>`;
+    }
 
     if (stats) {
         const minutes = Math.floor(stats.timePlayed / 60);
@@ -345,6 +390,32 @@ function renderNextPiece(nextPiece) {
                 if (nextPiece[row][col] === 1) {
                     nextPieceCtx.fillStyle = '#fff';
                     nextPieceCtx.fillRect(
+                        offsetX + col * pieceSize,
+                        offsetY + row * pieceSize,
+                        pieceSize - 1,
+                        pieceSize - 1
+                    );
+                }
+            }
+        }
+    }
+}
+
+function renderHoldPiece(holdPiece) {
+    // Clear the hold piece canvas
+    holdPieceCtx.fillStyle = '#000';
+    holdPieceCtx.fillRect(0, 0, holdPieceCanvas.width, holdPieceCanvas.height);
+
+    if (holdPiece) {
+        const pieceSize = 20; // Smaller tiles for hold piece display
+        const offsetX = (holdPieceCanvas.width - holdPiece[0].length * pieceSize) / 2;
+        const offsetY = (holdPieceCanvas.height - holdPiece.length * pieceSize) / 2;
+
+        for (let row = 0; row < holdPiece.length; row++) {
+            for (let col = 0; col < holdPiece[row].length; col++) {
+                if (holdPiece[row][col] === 1) {
+                    holdPieceCtx.fillStyle = '#aaa'; // Slightly dimmed to show it's held
+                    holdPieceCtx.fillRect(
                         offsetX + col * pieceSize,
                         offsetY + row * pieceSize,
                         pieceSize - 1,

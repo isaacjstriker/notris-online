@@ -45,7 +45,9 @@ func (s *APIServer) Start() {
 	// --- API Routes ---
 	router.HandleFunc("POST /api/register", s.handleRegister)
 	router.HandleFunc("POST /api/login", s.handleLogin)
+	router.HandleFunc("POST /api/logout", s.handleLogout)
 	router.HandleFunc("GET /api/leaderboard/{gameType}", s.handleGetLeaderboard)
+	router.HandleFunc("POST /api/scores", s.handleSubmitScore)
 
 	// --- WebSocket Route for Games ---
 	router.HandleFunc("/ws/game", s.handleGameConnection)
