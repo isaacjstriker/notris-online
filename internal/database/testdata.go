@@ -38,24 +38,12 @@ func (db *DB) CreateTestData() error {
 
 	for i, user := range testUsers {
 		var userID int
-		if db.dbType == "postgres" {
-			err := db.conn.QueryRow(
-				"INSERT INTO users (username, email, password_hash) VALUES ($1, $2, $3) RETURNING id",
-				user.username, user.email, user.password,
-			).Scan(&userID)
-			if err != nil {
-				return fmt.Errorf("failed to create test user %s: %w", user.username, err)
-			}
-		} else {
-			result, err := db.conn.Exec(
-				"INSERT INTO users (username, email, password_hash) VALUES (?, ?, ?)",
-				user.username, user.email, user.password,
-			)
-			if err != nil {
-				return fmt.Errorf("failed to create test user %s: %w", user.username, err)
-			}
-			id, _ := result.LastInsertId()
-			userID = int(id)
+		err := db.conn.QueryRow(
+			"INSERT INTO users (username, email, password_hash) VALUES ($1, $2, $3) RETURNING id",
+			user.username, user.email, user.password,
+		).Scan(&userID)
+		if err != nil {
+			return fmt.Errorf("failed to create test user %s: %w", user.username, err)
 		}
 		userIDs[i] = userID
 		fmt.Printf("   ✅ Created user: %s (ID: %d)\n", user.username, userID)
@@ -121,36 +109,20 @@ func (db *DB) CreateTestData() error {
 
 	for _, userScore := range testScores {
 		for j, scoreData := range userScore.scores {
-			var metadataValue interface{}
-
-			if db.dbType == "postgres" {
-				// PostgreSQL uses JSONB
-				metadataJSON, err := json.Marshal(scoreData.metadata)
-				if err != nil {
-					return fmt.Errorf("failed to marshal metadata: %w", err)
-				}
-				metadataValue = metadataJSON
-
-				_, err = db.conn.Exec(
-					"INSERT INTO game_scores (user_id, game_type, score, metadata, played_at) VALUES ($1, $2, $3, $4, $5)",
-					userScore.userID, scoreData.gameType, scoreData.score, metadataValue,
-					time.Now().Add(-time.Duration(len(userScore.scores)-j)*12*time.Hour),
-				)
-			} else {
-				// SQLite uses TEXT for JSON
-				metadataJSON, err := json.Marshal(scoreData.metadata)
-				if err != nil {
-					return fmt.Errorf("failed to marshal metadata: %w", err)
-				}
-				metadataValue = string(metadataJSON)
-
-				_, err = db.conn.Exec(
-					"INSERT INTO game_scores (user_id, game_type, score, metadata, played_at) VALUES (?, ?, ?, ?, ?)",
-					userScore.userID, scoreData.gameType, scoreData.score, metadataValue,
-					time.Now().Add(-time.Duration(len(userScore.scores)-j)*12*time.Hour),
-				)
+			// PostgreSQL uses JSONB
+			metadataJSON, err := json.Marshal(scoreData.metadata)
+			if err != nil {
+				return fmt.Errorf("failed to marshal metadata: %w", err)
 			}
 
+			_, err = db.conn.Exec(
+				"INSERT INTO game_scores (user_id, game_type, score, metadata, played_at) VALUES ($1, $2, $3, $4, $5)",
+				userScore.userID, scoreData.gameType, scoreData.score, metadataJSON,
+				time.Now().Add(-time.Duration(len(userScore.scores)-j)*12*time.Hour),
+			)
+			if err != nil {
+				return fmt.Errorf("failed to create test score: %w", err)
+			}
 		}
 		fmt.Printf("   📊 Created %d scores for user ID %d\n", len(userScore.scores), userScore.userID)
 	}

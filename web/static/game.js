@@ -253,7 +253,7 @@ function updateGameInfo(state) {
 
     // Render next piece
     renderNextPiece(state.nextPiece);
-    
+
     // Render hold piece
     renderHoldPiece(state.holdPiece);
 
@@ -271,7 +271,7 @@ function showGameOverScreen(finalScore, stats = null) {
             ppm: stats.ppm,
             line_stats: stats.lineStats
         } : {};
-        
+
         submitScore('tetris', finalScore, metadata)
             .then(() => {
                 console.log('Score submitted successfully!');

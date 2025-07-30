@@ -7,13 +7,12 @@ import (
 	"strings"
 	"time"
 
-	_ "github.com/lib/pq"           // PostgreSQL driver
-	_ "github.com/mattn/go-sqlite3" // Keep SQLite driver for local development
+	_ "github.com/lib/pq" // PostgreSQL driver
 )
 
 type DB struct {
 	conn   *sql.DB
-	dbType string // "postgres" or "sqlite3"
+	dbType string // "postgres"
 }
 
 type User struct {
@@ -82,75 +81,37 @@ func Connect(dbURL string) (*DB, error) {
 
 // CreateTables creates the necessary database tables
 func (db *DB) CreateTables() error {
-	var queries []string
-
-	if db.dbType == "postgres" {
-		// PostgreSQL table creation
-		queries = []string{
-			`CREATE TABLE IF NOT EXISTS users (
-				id SERIAL PRIMARY KEY,
-				username VARCHAR(50) UNIQUE NOT NULL,
-				email VARCHAR(100) UNIQUE NOT NULL,
-				password_hash VARCHAR(255) NOT NULL,
-				created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-				last_login TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-			)`,
-			`CREATE TABLE IF NOT EXISTS game_scores (
-				id SERIAL PRIMARY KEY,
-				user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-				game_type VARCHAR(50) NOT NULL,
-				score INTEGER NOT NULL,
-				metadata JSONB,
-				played_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-			)`,
-			`CREATE TABLE IF NOT EXISTS challenge_scores (
-				id SERIAL PRIMARY KEY,
-				user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-				total_score INTEGER NOT NULL DEFAULT 0,
-				games_played INTEGER NOT NULL DEFAULT 0,
-				avg_accuracy DECIMAL(5,2) NOT NULL DEFAULT 0.0,
-				perfect_games INTEGER NOT NULL DEFAULT 0,
-				created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-				updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-			)`,
-			`CREATE INDEX IF NOT EXISTS idx_game_scores_user_game ON game_scores(user_id, game_type)`,
-			`CREATE INDEX IF NOT EXISTS idx_game_scores_type_score ON game_scores(game_type, score DESC)`,
-			`CREATE INDEX IF NOT EXISTS idx_challenge_scores_total ON challenge_scores(total_score DESC)`,
-		}
-	} else {
-		// SQLite table creation (for local development)
-		queries = []string{
-			`CREATE TABLE IF NOT EXISTS users (
-				id INTEGER PRIMARY KEY AUTOINCREMENT,
-				username TEXT UNIQUE NOT NULL,
-				email TEXT UNIQUE NOT NULL,
-				password_hash TEXT NOT NULL,
-				created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-				last_login DATETIME DEFAULT CURRENT_TIMESTAMP
-			)`,
-			`CREATE TABLE IF NOT EXISTS game_scores (
-				id INTEGER PRIMARY KEY AUTOINCREMENT,
-				user_id INTEGER,
-				game_type TEXT NOT NULL,
-				score INTEGER NOT NULL,
-				metadata TEXT,
-				played_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-				FOREIGN KEY (user_id) REFERENCES users (id)
-			)`,
-			`CREATE TABLE IF NOT EXISTS challenge_scores (
-				id INTEGER PRIMARY KEY AUTOINCREMENT,
-				user_id INTEGER,
-				total_score INTEGER NOT NULL DEFAULT 0,
-				games_played INTEGER NOT NULL DEFAULT 0,
-				avg_accuracy REAL NOT NULL DEFAULT 0.0,
-				perfect_games INTEGER NOT NULL DEFAULT 0,
-				created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-				updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-				FOREIGN KEY (user_id) REFERENCES users (id)
-			)`,
-			`INSERT INTO game_scores (user_id, game_type, score, metadata)
-			VALUES (1, 'tetris', 15000, '{"lines": 50, "level": 5, "game_time": 180.5}')`,
-		}
+	// PostgreSQL table creation
+	queries := []string{
+		`CREATE TABLE IF NOT EXISTS users (
+			id SERIAL PRIMARY KEY,
+			username VARCHAR(50) UNIQUE NOT NULL,
+			email VARCHAR(100) UNIQUE NOT NULL,
+			password_hash VARCHAR(255) NOT NULL,
+			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+			last_login TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+		)`,
+		`CREATE TABLE IF NOT EXISTS game_scores (
+			id SERIAL PRIMARY KEY,
+			user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+			game_type VARCHAR(50) NOT NULL,
+			score INTEGER NOT NULL,
+			metadata JSONB,
+			played_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+		)`,
+		`CREATE TABLE IF NOT EXISTS challenge_scores (
+			id SERIAL PRIMARY KEY,
+			user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+			total_score INTEGER NOT NULL DEFAULT 0,
+			games_played INTEGER NOT NULL DEFAULT 0,
+			avg_accuracy DECIMAL(5,2) NOT NULL DEFAULT 0.0,
+			perfect_games INTEGER NOT NULL DEFAULT 0,
+			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+			updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_game_scores_user_game ON game_scores(user_id, game_type)`,
+		`CREATE INDEX IF NOT EXISTS idx_game_scores_type_score ON game_scores(game_type, score DESC)`,
+		`CREATE INDEX IF NOT EXISTS idx_challenge_scores_total ON challenge_scores(total_score DESC)`,
 	}
 
 	for _, query := range queries {
@@ -179,67 +140,31 @@ func (db *DB) QueryRow(query string, args ...interface{}) *sql.Row {
 
 // CreateUser creates a new user in the database
 func (db *DB) CreateUser(username, email, passwordHash string) (*User, error) {
-	var query string
-	var err error
-	
-	if db.dbType == "postgres" {
-		query = `
-			INSERT INTO users (username, email, password_hash)
-			VALUES ($1, $2, $3)
-			RETURNING id, created_at
-		`
-		var user User
-		err = db.conn.QueryRow(query, username, email, passwordHash).Scan(&user.ID, &user.CreatedAt)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create user: %w", err)
-		}
-		
-		return &User{
-			ID:        user.ID,
-			Username:  username,
-			Email:     email,
-			CreatedAt: user.CreatedAt,
-		}, nil
-	} else {
-		// SQLite version
-		query = `
-			INSERT INTO users (username, email, password_hash)
-			VALUES (?, ?, ?)
-		`
-		result, err := db.conn.Exec(query, username, email, passwordHash)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create user: %w", err)
-		}
-
-		id, err := result.LastInsertId()
-		if err != nil {
-			return nil, fmt.Errorf("failed to get user ID: %w", err)
-		}
-
-		return &User{
-			ID:        int(id),
-			Username:  username,
-			Email:     email,
-			CreatedAt: time.Now(),
-		}, nil
+	query := `
+		INSERT INTO users (username, email, password_hash)
+		VALUES ($1, $2, $3)
+		RETURNING id, created_at
+	`
+	var user User
+	err := db.conn.QueryRow(query, username, email, passwordHash).Scan(&user.ID, &user.CreatedAt)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create user: %w", err)
 	}
+
+	return &User{
+		ID:        user.ID,
+		Username:  username,
+		Email:     email,
+		CreatedAt: user.CreatedAt,
+	}, nil
 }
 
 // GetUserByUsername retrieves a user by username
 func (db *DB) GetUserByUsername(username string) (*User, string, error) {
-	var query string
-	
-	if db.dbType == "postgres" {
-		query = `
-			SELECT id, username, email, password_hash, created_at, last_login
-			FROM users WHERE username = $1
-		`
-	} else {
-		query = `
-			SELECT id, username, email, password_hash, created_at, last_login
-			FROM users WHERE username = ?
-		`
-	}
+	query := `
+		SELECT id, username, email, password_hash, created_at, last_login
+		FROM users WHERE username = $1
+	`
 
 	var user User
 	var passwordHash string
@@ -256,35 +181,21 @@ func (db *DB) GetUserByUsername(username string) (*User, string, error) {
 
 // SaveGameScore saves a game score to the database
 func (db *DB) SaveGameScore(userID int, gameType string, score int, metadata map[string]interface{}) error {
-	var query string
-	
-	if db.dbType == "postgres" {
-		query = `
-			INSERT INTO game_scores (user_id, game_type, score, metadata, played_at)
-			VALUES ($1, $2, $3, $4, $5)
-		`
-	} else {
-		query = `
-			INSERT INTO game_scores (user_id, game_type, score, metadata, played_at)
-			VALUES (?, ?, ?, ?, ?)
-		`
-	}
+	query := `
+		INSERT INTO game_scores (user_id, game_type, score, metadata, played_at)
+		VALUES ($1, $2, $3, $4, $5)
+	`
 
 	var metadataValue interface{}
-	var err error
-
 	if metadata != nil {
 		metadataJSON, err := json.Marshal(metadata)
 		if err != nil {
 			return fmt.Errorf("failed to marshal metadata: %w", err)
 		}
-		metadataValue = string(metadataJSON) // For SQLite
-		if db.dbType == "postgres" {
-			metadataValue = metadataJSON // For PostgreSQL JSONB
-		}
+		metadataValue = metadataJSON // For PostgreSQL JSONB
 	}
 
-	_, err = db.conn.Exec(query, userID, gameType, score, metadataValue, time.Now())
+	_, err := db.conn.Exec(query, userID, gameType, score, metadataValue, time.Now())
 	if err != nil {
 		return fmt.Errorf("failed to save game score: %w", err)
 	}
@@ -294,39 +205,20 @@ func (db *DB) SaveGameScore(userID int, gameType string, score int, metadata map
 
 // GetLeaderboard retrieves the leaderboard for a specific game
 func (db *DB) GetLeaderboard(gameType string, limit int) ([]LeaderboardEntry, error) {
-	var query string
-
-	if db.dbType == "postgres" {
-		query = `
-            SELECT 
-                u.username,
-                MAX(gs.score) as best_score,
-                AVG(gs.score) as avg_score,
-                COUNT(gs.id) as games_played,
-                MAX(gs.played_at) as last_played
-            FROM users u
-            JOIN game_scores gs ON u.id = gs.user_id
-            WHERE gs.game_type = $1
-            GROUP BY u.id, u.username
-            ORDER BY best_score DESC
-            LIMIT $2
-        `
-	} else {
-		query = `
-            SELECT 
-                u.username,
-                MAX(gs.score) as best_score,
-                AVG(CAST(gs.score AS REAL)) as avg_score,
-                COUNT(gs.id) as games_played,
-                MAX(gs.played_at) as last_played
-            FROM users u
-            JOIN game_scores gs ON u.id = gs.user_id
-            WHERE gs.game_type = ?
-            GROUP BY u.id, u.username
-            ORDER BY best_score DESC
-            LIMIT ?
-        `
-	}
+	query := `
+        SELECT 
+            u.username,
+            MAX(gs.score) as best_score,
+            AVG(gs.score) as avg_score,
+            COUNT(gs.id) as games_played,
+            MAX(gs.played_at) as last_played
+        FROM users u
+        JOIN game_scores gs ON u.id = gs.user_id
+        WHERE gs.game_type = $1
+        GROUP BY u.id, u.username
+        ORDER BY best_score DESC
+        LIMIT $2
+    `
 
 	rows, err := db.conn.Query(query, gameType, limit)
 	if err != nil {
@@ -337,39 +229,16 @@ func (db *DB) GetLeaderboard(gameType string, limit int) ([]LeaderboardEntry, er
 	var entries []LeaderboardEntry
 	for rows.Next() {
 		var entry LeaderboardEntry
-		var lastPlayedStr interface{} // Use interface{} to handle both string and time.Time
 
 		err := rows.Scan(
 			&entry.Username,
 			&entry.BestScore,
 			&entry.AvgScore,
 			&entry.GamesPlayed,
-			&lastPlayedStr,
+			&entry.LastPlayed, // PostgreSQL returns time.Time directly
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan leaderboard entry: %w", err)
-		}
-
-		// Handle date parsing based on database type
-		if db.dbType == "postgres" {
-			// PostgreSQL returns time.Time directly
-			if t, ok := lastPlayedStr.(time.Time); ok {
-				entry.LastPlayed = t
-			}
-		} else {
-			// SQLite returns string, parse it
-			if timeStr, ok := lastPlayedStr.(string); ok {
-				parsedTime, err := time.Parse("2006-01-02 15:04:05", timeStr)
-				if err != nil {
-					// Try alternative SQLite datetime format
-					parsedTime, err = time.Parse("2006-01-02T15:04:05Z", timeStr)
-					if err != nil {
-						// If all else fails, use current time
-						parsedTime = time.Now()
-					}
-				}
-				entry.LastPlayed = parsedTime
-			}
 		}
 
 		entry.GameType = gameType
@@ -384,51 +253,25 @@ func (db *DB) GetUserStats(userID int, gameType string) (*LeaderboardEntry, erro
 	query := `
 		SELECT 
 			u.username,
-			? as game_type,
+			$1 as game_type,
 			COALESCE(MAX(gs.score), 0) as best_score,
-			COALESCE(AVG(CAST(gs.score AS REAL)), 0) as avg_score,
+			COALESCE(AVG(gs.score), 0) as avg_score,
 			COUNT(gs.id) as games_played,
-			COALESCE(MAX(gs.played_at), datetime('now')) as last_played
+			COALESCE(MAX(gs.played_at), CURRENT_TIMESTAMP) as last_played
 		FROM users u
-		LEFT JOIN game_scores gs ON u.id = gs.user_id AND gs.game_type = ?
-		WHERE u.id = ?
+		LEFT JOIN game_scores gs ON u.id = gs.user_id AND gs.game_type = $2
+		WHERE u.id = $3
 		GROUP BY u.id, u.username
 	`
 
 	var entry LeaderboardEntry
-	var lastPlayedStr string
 
 	err := db.conn.QueryRow(query, gameType, gameType, userID).Scan(
 		&entry.Username, &entry.GameType, &entry.BestScore,
-		&entry.AvgScore, &entry.GamesPlayed, &lastPlayedStr,
+		&entry.AvgScore, &entry.GamesPlayed, &entry.LastPlayed,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get user stats: %w", err)
-	}
-
-	// Parse the date string into time.Time
-	if lastPlayedStr != "" {
-		formats := []string{
-			"2006-01-02 15:04:05",
-			"2006-01-02T15:04:05Z",
-			"2006-01-02T15:04:05",
-			time.RFC3339,
-		}
-
-		var parsed bool
-		for _, format := range formats {
-			if t, err := time.Parse(format, lastPlayedStr); err == nil {
-				entry.LastPlayed = t
-				parsed = true
-				break
-			}
-		}
-
-		if !parsed {
-			entry.LastPlayed = time.Now()
-		}
-	} else {
-		entry.LastPlayed = time.Now()
 	}
 
 	return &entry, nil
