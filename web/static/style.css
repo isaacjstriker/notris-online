@@ -756,3 +756,280 @@ th {
         padding: 8px 5px;
     }
 }
+
+/* Multiplayer Styles */
+#multiplayer-view {
+    padding: 20px;
+}
+
+#multiplayer-tabs {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 20px;
+    border-bottom: 2px solid #fff;
+}
+
+#multiplayer-tabs .tab-btn {
+    background-color: #000;
+    color: #fff;
+    border: 1px solid #fff;
+    border-bottom: none;
+    padding: 10px 20px;
+    font-family: 'Courier New', Courier, monospace;
+    cursor: pointer;
+    margin-right: 5px;
+    transition: background-color 0.3s;
+}
+
+#multiplayer-tabs .tab-btn.active {
+    background-color: #fff;
+    color: #000;
+}
+
+#multiplayer-tabs .tab-btn:hover:not(.active) {
+    background-color: #333;
+}
+
+.multiplayer-section {
+    padding: 20px 0;
+}
+
+/* Room Browser */
+.room-filters {
+    display: flex;
+    justify-content: center;
+    gap: 15px;
+    margin-bottom: 20px;
+    align-items: center;
+}
+
+.room-filters select {
+    background-color: #000;
+    color: #fff;
+    border: 1px solid #fff;
+    padding: 8px 12px;
+    font-family: 'Courier New', Courier, monospace;
+}
+
+.rooms-container {
+    min-height: 300px;
+    border: 1px solid #fff;
+    padding: 15px;
+    text-align: left;
+}
+
+.room-item {
+    border: 1px solid #666;
+    padding: 15px;
+    margin-bottom: 10px;
+    background-color: #111;
+    cursor: pointer;
+    transition: background-color 0.3s;
+}
+
+.room-item:hover {
+    background-color: #222;
+}
+
+.room-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.room-name {
+    font-size: 1.2em;
+    font-weight: bold;
+}
+
+.room-status {
+    color: #0f0;
+    font-size: 0.9em;
+}
+
+.room-status.full {
+    color: #f00;
+}
+
+.room-info {
+    color: #ccc;
+    font-size: 0.9em;
+}
+
+/* Create Room Form */
+#create-room-form {
+    max-width: 400px;
+    margin: 0 auto;
+    text-align: left;
+}
+
+.form-group {
+    margin-bottom: 15px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 5px;
+    color: #fff;
+}
+
+.form-group input,
+.form-group select {
+    width: 100%;
+    padding: 8px;
+    background-color: #000;
+    color: #fff;
+    border: 1px solid #fff;
+    font-family: 'Courier New', Courier, monospace;
+    box-sizing: border-box;
+}
+
+.form-group input[type="checkbox"] {
+    width: auto;
+    margin-right: 8px;
+}
+
+/* Room Lobby */
+.lobby-header {
+    text-align: center;
+    margin-bottom: 20px;
+    border-bottom: 1px solid #fff;
+    padding-bottom: 15px;
+}
+
+.lobby-header h2 {
+    margin-bottom: 8px;
+    color: #fff;
+}
+
+.lobby-info {
+    color: #ccc;
+    font-size: 0.9em;
+}
+
+.lobby-content {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.players-section h3 {
+    margin-bottom: 10px;
+    color: #fff;
+}
+
+.players-list {
+    border: 1px solid #fff;
+    padding: 15px;
+    min-height: 120px;
+}
+
+.player-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0;
+    border-bottom: 1px solid #333;
+}
+
+.player-item:last-child {
+    border-bottom: none;
+}
+
+.player-name {
+    font-weight: bold;
+}
+
+.player-status {
+    font-size: 0.9em;
+    color: #0f0;
+}
+
+.player-status.not-ready {
+    color: #f00;
+}
+
+.lobby-actions {
+    display: flex;
+    justify-content: center;
+    gap: 15px;
+}
+
+.action-btn {
+    background-color: #000;
+    color: #fff;
+    border: 2px solid #0f0;
+    padding: 12px 24px;
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 1.1em;
+    cursor: pointer;
+    transition: all 0.3s;
+}
+
+.action-btn:hover {
+    background-color: #0f0;
+    color: #000;
+}
+
+.action-btn:disabled {
+    border-color: #666;
+    color: #666;
+    cursor: not-allowed;
+}
+
+.action-btn:disabled:hover {
+    background-color: #000;
+    color: #666;
+}
+
+.secondary-btn {
+    background-color: #000;
+    color: #fff;
+    border: 2px solid #f00;
+    padding: 12px 24px;
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 1.1em;
+    cursor: pointer;
+    transition: all 0.3s;
+}
+
+.secondary-btn:hover {
+    background-color: #f00;
+    color: #000;
+}
+
+.game-status {
+    text-align: center;
+    padding: 15px;
+    border: 1px solid #fff;
+    background-color: #111;
+}
+
+.loading {
+    text-align: center;
+    color: #ccc;
+    font-style: italic;
+    padding: 40px;
+}
+
+/* Responsive Design for Multiplayer */
+@media (max-width: 768px) {
+    .lobby-content {
+        gap: 15px;
+    }
+
+    .lobby-actions {
+        flex-direction: column;
+        align-items: center;
+    }
+
+    .room-filters {
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    #create-room-form {
+        padding: 0 20px;
+    }
+}

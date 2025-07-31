@@ -8,6 +8,7 @@ document.addEventListener('DOMContentLoaded', () => {
         register: document.getElementById('register-view'),
         leaderboard: document.getElementById('leaderboard-view'),
         levelSelect: document.getElementById('level-select-view'),
+        multiplayer: document.getElementById('multiplayer-view'),
     };
 
     const authNav = {
@@ -49,6 +50,12 @@ document.addEventListener('DOMContentLoaded', () => {
             targetView = views.leaderboard;
         } else if (viewName === 'levelSelect') {
             targetView = views.levelSelect;
+        } else if (viewName === 'multiplayer') {
+            targetView = views.multiplayer;
+            // Initialize multiplayer when showing the view
+            if (window.multiplayerManager) {
+                window.multiplayerManager.initialize();
+            }
         }
 
         if (targetView) {
@@ -128,7 +135,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     document.getElementById('multiplayer-btn').addEventListener('click', () => {
-        alert('Multiplayer is coming soon!');
+        showView('multiplayer');
     });
 
     // Level Selection

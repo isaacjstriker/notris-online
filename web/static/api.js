@@ -64,3 +64,9 @@ function getRecentGames(gameType, limit = 10) {
 function submitScore(gameType, score, metadata = {}) {
     return apiRequest('POST', '/scores', { game_type: gameType, score, metadata });
 }
+
+// Alias for multiplayer compatibility
+function apiCall(path, method, body = null) {
+    console.log(`apiCall: ${method} ${path}`, body);
+    return apiRequest(method, path, body);
+}

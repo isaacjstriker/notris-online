@@ -182,12 +182,74 @@
                     </div>
                 </div>
             </div>
+
+            <!-- Multiplayer View -->
+            <div id="multiplayer-view" class="hidden">
+                <div id="multiplayer-tabs">
+                    <button class="tab-btn active" id="room-browser-tab">Browse Rooms</button>
+                    <button class="tab-btn" id="create-room-tab">Create Room</button>
+                    <button class="tab-btn" id="room-lobby-tab" style="display: none;">Room Lobby</button>
+                </div>
+
+                <!-- Room Browser -->
+                <div id="room-browser" class="multiplayer-section">
+                    <div class="room-filters">
+                        <button id="refresh-rooms-btn" class="action-btn">Refresh</button>
+                    </div>
+                    <div id="rooms-list" class="rooms-container">
+                        <div class="loading">Loading rooms...</div>
+                    </div>
+                </div>
+
+                <!-- Create Room -->
+                <div id="create-room" class="multiplayer-section hidden">
+                    <form id="create-room-form">
+                        <div class="form-group">
+                            <label for="room-name">Room Name:</label>
+                            <input type="text" id="room-name" maxlength="50" required>
+                        </div>
+                        <div class="form-group">
+                            <label>
+                                <input type="checkbox" id="private-room"> Private Room
+                            </label>
+                        </div>
+                        <button type="submit" class="action-btn">Create Room</button>
+                    </form>
+                </div>
+
+                <!-- Room Lobby -->
+                <div id="room-lobby" class="multiplayer-section hidden">
+                    <div class="lobby-header">
+                        <h2 id="lobby-room-name">Room Name</h2>
+                        <div class="lobby-info">
+                            <span id="lobby-game-type">Tetris</span> •
+                            <span id="lobby-player-count">1/2</span> players
+                        </div>
+                    </div>
+                    <div class="lobby-content">
+                        <div class="players-section">
+                            <h3>Players</h3>
+                            <div id="lobby-players" class="players-list"></div>
+                        </div>
+                        <div class="lobby-actions">
+                            <button id="ready-btn" class="action-btn">Ready</button>
+                            <button id="leave-room-btn" class="secondary-btn">Leave Room</button>
+                        </div>
+                        <div class="game-status">
+                            <div id="lobby-status">Waiting for players...</div>
+                        </div>
+                    </div>
+                </div>
+
+                <button id="back-to-menu-from-multiplayer-btn" class="back-btn">Back to Menu</button>
+            </div>
         </main>
     </div>
 
     <script src="/static/auth.js"></script>
     <script src="/static/api.js"></script>
     <script src="/static/game.js"></script>
+    <script src="/static/multiplayer.js"></script>
     <script src="/static/main.js"></script>
 </body>
 

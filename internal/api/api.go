@@ -7,6 +7,7 @@ import (
 
 	"github.com/isaacjstriker/devware/internal/config"
 	"github.com/isaacjstriker/devware/internal/database"
+	"github.com/isaacjstriker/devware/internal/multiplayer"
 	"github.com/isaacjstriker/devware/web"
 )
 
@@ -15,6 +16,7 @@ type APIServer struct {
 	listenAddr string
 	db         *database.DB
 	config     *config.Config
+	wsHub      *multiplayer.Hub
 }
 
 // NewAPIServer creates a new APIServer instance
@@ -23,6 +25,7 @@ func NewAPIServer(listenAddr string, db *database.DB, config *config.Config) *AP
 		listenAddr: listenAddr,
 		db:         db,
 		config:     config,
+		wsHub:      multiplayer.NewHub(db),
 	}
 }
 
@@ -50,8 +53,20 @@ func (s *APIServer) Start() {
 	router.HandleFunc("GET /api/recent/{gameType}", s.handleGetRecentGames)
 	router.HandleFunc("POST /api/scores", s.handleSubmitScore)
 
-	// --- WebSocket Route for Games ---
-	router.HandleFunc("/ws/game", s.handleGameConnection)
+	// --- Multiplayer API Routes ---
+	router.HandleFunc("POST /api/rooms", requireAuth(s, s.handleCreateRoom))
+	router.HandleFunc("GET /api/rooms/{gameType}", s.handleGetAvailableRooms)
+	router.HandleFunc("GET /api/room/{roomId}", s.handleGetRoom)
+	router.HandleFunc("POST /api/room/{roomId}/join", requireAuth(s, s.handleJoinRoom))
+	router.HandleFunc("POST /api/room/{roomId}/leave", requireAuth(s, s.handleLeaveRoom))
+	router.HandleFunc("POST /api/room/{roomId}/ready", requireAuth(s, s.handlePlayerReady))
+
+	// --- WebSocket Routes ---
+	router.HandleFunc("GET /ws/room/{roomId}", s.handleWebSocket)
+	router.HandleFunc("GET /ws/game", s.handleGameConnection)
+
+	// Start the WebSocket hub
+	go s.wsHub.Run()
 
 	log.Printf("API server listening on %s", s.listenAddr)
 	if err := http.ListenAndServe(s.listenAddr, router); err != nil {

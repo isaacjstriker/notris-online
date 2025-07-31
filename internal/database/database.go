@@ -4,9 +4,11 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"log"
 	"strings"
 	"time"
 
+	"github.com/lib/pq"
 	_ "github.com/lib/pq" // PostgreSQL driver
 )
 
@@ -30,6 +32,47 @@ type GameScore struct {
 	Score          int                    `json:"score"`
 	AdditionalData map[string]interface{} `json:"additional_data"`
 	PlayedAt       time.Time              `json:"played_at"`
+}
+
+// MultiplayerRoom represents a multiplayer game room
+type MultiplayerRoom struct {
+	ID         string                 `json:"id"`
+	Name       string                 `json:"name"`
+	GameType   string                 `json:"game_type"`
+	MaxPlayers int                    `json:"max_players"`
+	Status     string                 `json:"status"` // "waiting", "playing", "finished"
+	CreatedBy  int                    `json:"created_by"`
+	CreatedAt  time.Time              `json:"created_at"`
+	StartedAt  *time.Time             `json:"started_at,omitempty"`
+	FinishedAt *time.Time             `json:"finished_at,omitempty"`
+	Settings   map[string]interface{} `json:"settings,omitempty"`
+	Players    []MultiplayerPlayer    `json:"players,omitempty"`
+	Spectators []int                  `json:"spectators,omitempty"`
+}
+
+// MultiplayerPlayer represents a player in a multiplayer game
+type MultiplayerPlayer struct {
+	UserID     int                    `json:"user_id"`
+	Username   string                 `json:"username"`
+	Position   int                    `json:"position"` // 1-based ranking
+	Score      int                    `json:"score"`
+	Status     string                 `json:"status"` // "playing", "finished", "disconnected"
+	JoinedAt   time.Time              `json:"joined_at"`
+	FinishedAt *time.Time             `json:"finished_at,omitempty"`
+	GameState  map[string]interface{} `json:"game_state,omitempty"`
+	IsReady    bool                   `json:"is_ready"`
+}
+
+// MultiplayerGame represents a completed multiplayer game
+type MultiplayerGame struct {
+	ID         string              `json:"id"`
+	RoomID     string              `json:"room_id"`
+	GameType   string              `json:"game_type"`
+	Duration   int                 `json:"duration"` // seconds
+	StartedAt  time.Time           `json:"started_at"`
+	FinishedAt time.Time           `json:"finished_at"`
+	Winner     *int                `json:"winner,omitempty"`
+	Players    []MultiplayerPlayer `json:"players"`
 }
 
 // LeaderboardEntry represents a single entry in the leaderboard
@@ -122,9 +165,46 @@ func (db *DB) CreateTables() error {
 			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 			updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 		)`,
+		`CREATE TABLE IF NOT EXISTS multiplayer_rooms (
+			id VARCHAR(50) PRIMARY KEY,
+			name VARCHAR(100) NOT NULL,
+			game_type VARCHAR(50) NOT NULL,
+			max_players INTEGER NOT NULL DEFAULT 4,
+			status VARCHAR(20) NOT NULL DEFAULT 'waiting',
+			created_by INTEGER REFERENCES users(id) ON DELETE CASCADE,
+			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+			started_at TIMESTAMP,
+			finished_at TIMESTAMP,
+			settings JSONB
+		)`,
+		`CREATE TABLE IF NOT EXISTS multiplayer_players (
+			room_id VARCHAR(50) REFERENCES multiplayer_rooms(id) ON DELETE CASCADE,
+			user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+			position INTEGER DEFAULT 0,
+			score INTEGER DEFAULT 0,
+			status VARCHAR(20) NOT NULL DEFAULT 'playing',
+			joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+			finished_at TIMESTAMP,
+			game_state JSONB,
+			is_ready BOOLEAN DEFAULT FALSE,
+			PRIMARY KEY (room_id, user_id)
+		)`,
+		`CREATE TABLE IF NOT EXISTS multiplayer_games (
+			id VARCHAR(50) PRIMARY KEY,
+			room_id VARCHAR(50) REFERENCES multiplayer_rooms(id) ON DELETE CASCADE,
+			game_type VARCHAR(50) NOT NULL,
+			duration INTEGER NOT NULL,
+			started_at TIMESTAMP NOT NULL,
+			finished_at TIMESTAMP NOT NULL,
+			winner INTEGER REFERENCES users(id),
+			metadata JSONB
+		)`,
 		`CREATE INDEX IF NOT EXISTS idx_game_scores_user_game ON game_scores(user_id, game_type)`,
 		`CREATE INDEX IF NOT EXISTS idx_game_scores_type_score ON game_scores(game_type, score DESC)`,
 		`CREATE INDEX IF NOT EXISTS idx_challenge_scores_total ON challenge_scores(total_score DESC)`,
+		`CREATE INDEX IF NOT EXISTS idx_multiplayer_rooms_status ON multiplayer_rooms(status, created_at)`,
+		`CREATE INDEX IF NOT EXISTS idx_multiplayer_players_room ON multiplayer_players(room_id, joined_at)`,
+		`CREATE INDEX IF NOT EXISTS idx_multiplayer_games_type ON multiplayer_games(game_type, finished_at DESC)`,
 	}
 
 	for _, query := range queries {
@@ -521,6 +601,372 @@ func (db *DB) GetRecentGames(gameType string, limit int) ([]GameScore, error) {
 	}
 
 	return games, nil
+}
+
+// Multiplayer Room Management
+
+// CreateMultiplayerRoom creates a new multiplayer room
+func (db *DB) CreateMultiplayerRoom(room *MultiplayerRoom) error {
+	settingsJSON, err := json.Marshal(room.Settings)
+	if err != nil {
+		return fmt.Errorf("failed to marshal settings: %w", err)
+	}
+
+	query := `
+		INSERT INTO multiplayer_rooms (id, name, game_type, max_players, created_by, settings)
+		VALUES ($1, $2, $3, $4, $5, $6)
+	`
+	_, err = db.conn.Exec(query, room.ID, room.Name, room.GameType, room.MaxPlayers, room.CreatedBy, settingsJSON)
+	if err != nil {
+		return fmt.Errorf("failed to create room: %w", err)
+	}
+
+	return nil
+}
+
+// GetMultiplayerRoom gets a room by ID with players
+func (db *DB) GetMultiplayerRoom(roomID string) (*MultiplayerRoom, error) {
+	query := `
+		SELECT r.id, r.name, r.game_type, r.max_players, r.status, r.created_by, 
+		       r.created_at, r.started_at, r.finished_at, r.settings
+		FROM multiplayer_rooms r
+		WHERE r.id = $1
+	`
+
+	var room MultiplayerRoom
+	var settingsJSON []byte
+	err := db.conn.QueryRow(query, roomID).Scan(
+		&room.ID, &room.Name, &room.GameType, &room.MaxPlayers, &room.Status,
+		&room.CreatedBy, &room.CreatedAt, &room.StartedAt, &room.FinishedAt, &settingsJSON,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get room: %w", err)
+	}
+
+	// Parse settings
+	if len(settingsJSON) > 0 {
+		if err := json.Unmarshal(settingsJSON, &room.Settings); err != nil {
+			room.Settings = make(map[string]interface{})
+		}
+	}
+
+	// Get players
+	players, err := db.GetRoomPlayers(roomID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get room players: %w", err)
+	}
+	room.Players = players
+
+	return &room, nil
+}
+
+// GetAvailableRooms gets rooms that can be joined
+func (db *DB) GetAvailableRooms(gameType string) ([]MultiplayerRoom, error) {
+	query := `
+		SELECT r.id, r.name, r.game_type, r.max_players, r.status, r.created_by, 
+		       r.created_at, r.started_at, r.finished_at, r.settings,
+		       COUNT(p.user_id) as current_players
+		FROM multiplayer_rooms r
+		LEFT JOIN multiplayer_players p ON r.id = p.room_id
+		WHERE r.game_type = $1 AND r.status = 'waiting'
+		GROUP BY r.id, r.name, r.game_type, r.max_players, r.status, r.created_by, 
+		         r.created_at, r.started_at, r.finished_at, r.settings
+		HAVING COUNT(p.user_id) < r.max_players
+		ORDER BY r.created_at DESC
+	`
+
+	rows, err := db.conn.Query(query, gameType)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get available rooms: %w", err)
+	}
+	defer rows.Close()
+
+	var rooms []MultiplayerRoom
+	for rows.Next() {
+		var room MultiplayerRoom
+		var settingsJSON []byte
+		var currentPlayers int
+
+		err := rows.Scan(
+			&room.ID, &room.Name, &room.GameType, &room.MaxPlayers, &room.Status,
+			&room.CreatedBy, &room.CreatedAt, &room.StartedAt, &room.FinishedAt,
+			&settingsJSON, &currentPlayers,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan room: %w", err)
+		}
+
+		// Parse settings
+		if len(settingsJSON) > 0 {
+			if err := json.Unmarshal(settingsJSON, &room.Settings); err != nil {
+				room.Settings = make(map[string]interface{})
+			}
+		}
+
+		// Add current player count to settings for display
+		if room.Settings == nil {
+			room.Settings = make(map[string]interface{})
+		}
+		room.Settings["current_players"] = currentPlayers
+
+		rooms = append(rooms, room)
+	}
+
+	return rooms, nil
+}
+
+// JoinMultiplayerRoom adds a player to a room
+func (db *DB) JoinMultiplayerRoom(roomID string, userID int) error {
+	// Check if room exists and has space
+	room, err := db.GetMultiplayerRoom(roomID)
+	if err != nil {
+		return fmt.Errorf("failed to get room: %w", err)
+	}
+
+	if room.Status != "waiting" {
+		return fmt.Errorf("room is not accepting new players")
+	}
+
+	if len(room.Players) >= room.MaxPlayers {
+		return fmt.Errorf("room is full")
+	}
+
+	// Add player to room
+	query := `
+		INSERT INTO multiplayer_players (room_id, user_id, is_ready)
+		VALUES ($1, $2, false)
+		ON CONFLICT (room_id, user_id) DO NOTHING
+	`
+	_, err = db.conn.Exec(query, roomID, userID)
+	if err != nil {
+		return fmt.Errorf("failed to join room: %w", err)
+	}
+
+	return nil
+}
+
+// LeaveMultiplayerRoom removes a player from a room
+func (db *DB) LeaveMultiplayerRoom(roomID string, userID int) error {
+	query := `DELETE FROM multiplayer_players WHERE room_id = $1 AND user_id = $2`
+	_, err := db.conn.Exec(query, roomID, userID)
+	if err != nil {
+		return fmt.Errorf("failed to leave room: %w", err)
+	}
+
+	// If room is empty, delete it
+	countQuery := `SELECT COUNT(*) FROM multiplayer_players WHERE room_id = $1`
+	var playerCount int
+	err = db.conn.QueryRow(countQuery, roomID).Scan(&playerCount)
+	if err == nil && playerCount == 0 {
+		deleteQuery := `DELETE FROM multiplayer_rooms WHERE id = $1`
+		db.conn.Exec(deleteQuery, roomID)
+	}
+
+	return nil
+}
+
+// GetRoomPlayers gets all players in a room
+func (db *DB) GetRoomPlayers(roomID string) ([]MultiplayerPlayer, error) {
+	query := `
+		SELECT p.user_id, u.username, p.position, p.score, p.status, 
+		       p.joined_at, p.finished_at, p.game_state, p.is_ready
+		FROM multiplayer_players p
+		JOIN users u ON p.user_id = u.id
+		WHERE p.room_id = $1
+		ORDER BY p.joined_at ASC
+	`
+
+	rows, err := db.conn.Query(query, roomID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get room players: %w", err)
+	}
+	defer rows.Close()
+
+	var players []MultiplayerPlayer
+	for rows.Next() {
+		var player MultiplayerPlayer
+		var gameStateJSON []byte
+
+		err := rows.Scan(
+			&player.UserID, &player.Username, &player.Position, &player.Score,
+			&player.Status, &player.JoinedAt, &player.FinishedAt, &gameStateJSON, &player.IsReady,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan player: %w", err)
+		}
+
+		// Parse game state
+		if len(gameStateJSON) > 0 {
+			if err := json.Unmarshal(gameStateJSON, &player.GameState); err != nil {
+				player.GameState = make(map[string]interface{})
+			}
+		}
+
+		players = append(players, player)
+	}
+
+	return players, nil
+}
+
+// UpdatePlayerReady sets a player's ready status
+func (db *DB) UpdatePlayerReady(roomID string, userID int, isReady bool) error {
+	query := `
+		UPDATE multiplayer_players 
+		SET is_ready = $3 
+		WHERE room_id = $1 AND user_id = $2
+	`
+	_, err := db.conn.Exec(query, roomID, userID, isReady)
+	if err != nil {
+		return fmt.Errorf("failed to update player ready status: %w", err)
+	}
+
+	return nil
+}
+
+// StartMultiplayerGame starts a game if all players are ready
+func (db *DB) StartMultiplayerGame(roomID string) error {
+	// Check if all players are ready
+	query := `
+		SELECT COUNT(*) as total, COUNT(CASE WHEN is_ready THEN 1 END) as ready
+		FROM multiplayer_players 
+		WHERE room_id = $1
+	`
+	var total, ready int
+	err := db.conn.QueryRow(query, roomID).Scan(&total, &ready)
+	if err != nil {
+		return fmt.Errorf("failed to check player ready status: %w", err)
+	}
+
+	if total < 2 {
+		return fmt.Errorf("need at least 2 players to start")
+	}
+
+	if ready != total {
+		return fmt.Errorf("not all players are ready")
+	}
+
+	// Update room status
+	updateQuery := `
+		UPDATE multiplayer_rooms 
+		SET status = 'playing', started_at = CURRENT_TIMESTAMP 
+		WHERE id = $1
+	`
+	_, err = db.conn.Exec(updateQuery, roomID)
+	if err != nil {
+		return fmt.Errorf("failed to start game: %w", err)
+	}
+
+	return nil
+}
+
+// UpdatePlayerGameState updates a player's game state during play
+func (db *DB) UpdatePlayerGameState(roomID string, userID int, gameState map[string]interface{}, score int) error {
+	gameStateJSON, err := json.Marshal(gameState)
+	if err != nil {
+		return fmt.Errorf("failed to marshal game state: %w", err)
+	}
+
+	query := `
+		UPDATE multiplayer_players 
+		SET game_state = $3, score = $4 
+		WHERE room_id = $1 AND user_id = $2
+	`
+	_, err = db.conn.Exec(query, roomID, userID, gameStateJSON, score)
+	if err != nil {
+		return fmt.Errorf("failed to update player game state: %w", err)
+	}
+
+	return nil
+}
+
+// FinishPlayerGame marks a player as finished
+func (db *DB) FinishPlayerGame(roomID string, userID int, finalScore int, position int) error {
+	query := `
+		UPDATE multiplayer_players 
+		SET status = 'finished', finished_at = CURRENT_TIMESTAMP, score = $3, position = $4
+		WHERE room_id = $1 AND user_id = $2
+	`
+	_, err := db.conn.Exec(query, roomID, userID, finalScore, position)
+	if err != nil {
+		return fmt.Errorf("failed to finish player game: %w", err)
+	}
+
+	return nil
+}
+
+// CleanupInactiveRooms removes rooms that have been waiting for more than the specified duration
+func (db *DB) CleanupInactiveRooms(maxAge time.Duration) ([]string, error) {
+	cutoffTime := time.Now().UTC().Add(-maxAge)
+	log.Printf("Running cleanup for rooms older than %v (cutoff UTC: %v)", maxAge, cutoffTime)
+	
+	// First, get the IDs of rooms that will be cleaned up
+	selectQuery := `
+		SELECT id, name, created_at FROM multiplayer_rooms 
+		WHERE status = 'waiting' AND created_at < $1
+	`
+	
+	rows, err := db.conn.Query(selectQuery, cutoffTime)
+	if err != nil {
+		log.Printf("Failed to query inactive rooms: %v", err)
+		return nil, fmt.Errorf("failed to query inactive rooms: %w", err)
+	}
+	defer rows.Close()
+
+	var roomsToCleanup []string
+	var roomData []struct {
+		ID        string
+		Name      string
+		CreatedAt time.Time
+	}
+
+	for rows.Next() {
+		var room struct {
+			ID        string
+			Name      string
+			CreatedAt time.Time
+		}
+		if err := rows.Scan(&room.ID, &room.Name, &room.CreatedAt); err != nil {
+			return nil, fmt.Errorf("failed to scan room: %w", err)
+		}
+		roomsToCleanup = append(roomsToCleanup, room.ID)
+		roomData = append(roomData, room)
+		log.Printf("Found room to cleanup: %s (%s) created at %v", room.Name, room.ID, room.CreatedAt)
+	}
+
+	log.Printf("Found %d rooms to cleanup: %v", len(roomsToCleanup), roomsToCleanup)
+
+	if len(roomsToCleanup) == 0 {
+		return roomsToCleanup, nil
+	}
+
+	// Delete players from these rooms first
+	deletePlayersQuery := `
+		DELETE FROM multiplayer_players 
+		WHERE room_id = ANY($1)
+	`
+	_, err = db.conn.Exec(deletePlayersQuery, pq.Array(roomsToCleanup))
+	if err != nil {
+		log.Printf("Failed to delete players from inactive rooms: %v", err)
+		return nil, fmt.Errorf("failed to delete players from inactive rooms: %w", err)
+	}
+
+	// Delete the rooms
+	deleteRoomsQuery := `
+		DELETE FROM multiplayer_rooms 
+		WHERE id = ANY($1)
+	`
+	_, err = db.conn.Exec(deleteRoomsQuery, pq.Array(roomsToCleanup))
+	if err != nil {
+		log.Printf("Failed to delete inactive rooms: %v", err)
+		return nil, fmt.Errorf("failed to delete inactive rooms: %w", err)
+	}
+
+	// Log the cleanup
+	for _, room := range roomData {
+		log.Printf("Cleaned up inactive room: %s (%s)", room.Name, room.ID)
+	}
+
+	return roomsToCleanup, nil
 }
 
 // Close closes the database connection
