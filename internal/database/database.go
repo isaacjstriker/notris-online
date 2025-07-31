@@ -898,13 +898,13 @@ func (db *DB) FinishPlayerGame(roomID string, userID int, finalScore int, positi
 func (db *DB) CleanupInactiveRooms(maxAge time.Duration) ([]string, error) {
 	cutoffTime := time.Now().UTC().Add(-maxAge)
 	log.Printf("Running cleanup for rooms older than %v (cutoff UTC: %v)", maxAge, cutoffTime)
-	
+
 	// First, get the IDs of rooms that will be cleaned up
 	selectQuery := `
 		SELECT id, name, created_at FROM multiplayer_rooms 
 		WHERE status = 'waiting' AND created_at < $1
 	`
-	
+
 	rows, err := db.conn.Query(selectQuery, cutoffTime)
 	if err != nil {
 		log.Printf("Failed to query inactive rooms: %v", err)

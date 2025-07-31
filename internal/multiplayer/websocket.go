@@ -37,13 +37,13 @@ type Client struct {
 
 // Hub maintains active clients and broadcasts messages
 type Hub struct {
-	clients    map[*Client]bool
-	rooms      map[string]map[*Client]bool
-	broadcast  chan WebSocketMessage
-	register   chan *Client
-	unregister chan *Client
-	db         *database.DB
-	mutex      sync.RWMutex
+	clients     map[*Client]bool
+	rooms       map[string]map[*Client]bool
+	broadcast   chan WebSocketMessage
+	register    chan *Client
+	unregister  chan *Client
+	db          *database.DB
+	mutex       sync.RWMutex
 	stopCleanup chan bool
 }
 
@@ -153,24 +153,22 @@ func (h *Hub) cleanupInactiveRooms() {
 			roomClients := h.rooms[roomID]
 			h.mutex.RUnlock()
 
-			if roomClients != nil {
-				for client := range roomClients {
-					select {
-					case client.Send <- WebSocketMessage{
-						Type:  "room_closed",
-						RoomID: roomID,
-						Data: map[string]interface{}{
-							"reason": "Room closed due to inactivity",
-						},
-					}:
-					default:
-						// Client send channel is full, close it
-						close(client.Send)
-						h.mutex.Lock()
-						delete(h.clients, client)
-						delete(h.rooms[roomID], client)
-						h.mutex.Unlock()
-					}
+			for client := range roomClients {
+				select {
+				case client.Send <- WebSocketMessage{
+					Type:   "room_closed",
+					RoomID: roomID,
+					Data: map[string]interface{}{
+						"reason": "Room closed due to inactivity",
+					},
+				}:
+				default:
+					// Client send channel is full, close it
+					close(client.Send)
+					h.mutex.Lock()
+					delete(h.clients, client)
+					delete(h.rooms[roomID], client)
+					h.mutex.Unlock()
 				}
 			}
 

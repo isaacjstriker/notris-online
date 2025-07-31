@@ -399,7 +399,7 @@ class MultiplayerManager {
     handleRoomClosed(message) {
         const reason = message.data?.reason || 'Room was closed';
         console.log(`Room ${message.room_id} was closed: ${reason}`);
-        
+
         // If we're currently in this room, redirect to browser
         if (this.currentRoom && this.currentRoom.id === message.room_id) {
             alert(`${reason}. Returning to room browser.`);
@@ -412,17 +412,17 @@ class MultiplayerManager {
     // Handle rooms updated notification (for cleanup)
     handleRoomsUpdated(message) {
         console.log('Rooms updated:', message.data);
-        
+
         // If we're currently viewing the room browser, refresh the list
         if (!this.roomBrowserSection.classList.contains('hidden')) {
             this.refreshRooms();
         }
-        
+
         // Show a notification if rooms were removed due to inactivity
         if (message.data?.reason === 'inactive_cleanup' && message.data?.removed_rooms?.length > 0) {
             const count = message.data.removed_rooms.length;
             console.log(`${count} inactive room(s) were automatically closed`);
-            
+
             // Show a subtle notification without interrupting gameplay
             this.showNotification(`${count} inactive room${count > 1 ? 's' : ''} removed`, 'info');
         }
@@ -448,9 +448,9 @@ class MultiplayerManager {
             max-width: 300px;
             transition: opacity 0.3s ease;
         `;
-        
+
         document.body.appendChild(notification);
-        
+
         // Auto-remove after 3 seconds
         setTimeout(() => {
             notification.style.opacity = '0';
@@ -479,7 +479,7 @@ class MultiplayerManager {
 
         // Connect to receive general room updates (not specific to a room)
         this.connectForRoomUpdates();
-        
+
         // Initial room refresh
         this.refreshRooms();
     }
@@ -523,7 +523,6 @@ class MultiplayerManager {
             console.error('Room updates WebSocket error:', error);
         };
     }
-}
 }
 
 // Global multiplayer manager instance
