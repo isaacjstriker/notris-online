@@ -969,6 +969,110 @@ func (db *DB) CleanupInactiveRooms(maxAge time.Duration) ([]string, error) {
 	return roomsToCleanup, nil
 }
 
+// CalculatePlayerPosition determines finishing position based on score
+func (db *DB) CalculatePlayerPosition(roomID string, score int) (int, error) {
+	query := `
+		SELECT COUNT(*) + 1 
+		FROM multiplayer_players 
+		WHERE room_id = $1 AND status = 'finished' AND score > $2
+	`
+	var position int
+	err := db.conn.QueryRow(query, roomID, score).Scan(&position)
+	if err != nil {
+		return 1, fmt.Errorf("failed to calculate position: %w", err)
+	}
+	return position, nil
+}
+
+// GetFinishedPlayerCount returns count of finished players in a room
+func (db *DB) GetFinishedPlayerCount(roomID string) (int, error) {
+	query := `
+		SELECT COUNT(*) 
+		FROM multiplayer_players 
+		WHERE room_id = $1 AND status = 'finished'
+	`
+	var count int
+	err := db.conn.QueryRow(query, roomID).Scan(&count)
+	if err != nil {
+		return 0, fmt.Errorf("failed to count finished players: %w", err)
+	}
+	return count, nil
+}
+
+// GetGameResults gets final results for a completed game
+func (db *DB) GetGameResults(roomID string) ([]map[string]interface{}, error) {
+	query := `
+		SELECT mp.user_id, u.username, mp.score, mp.position, mp.finished_at
+		FROM multiplayer_players mp
+		JOIN users u ON mp.user_id = u.id
+		WHERE mp.room_id = $1 AND mp.status = 'finished'
+		ORDER BY mp.position ASC
+	`
+	rows, err := db.conn.Query(query, roomID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get game results: %w", err)
+	}
+	defer rows.Close()
+
+	var results []map[string]interface{}
+	for rows.Next() {
+		var userID int
+		var username string
+		var score, position int
+		var finishedAt time.Time
+
+		err := rows.Scan(&userID, &username, &score, &position, &finishedAt)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan result row: %w", err)
+		}
+
+		results = append(results, map[string]interface{}{
+			"userID":     userID,
+			"username":   username,
+			"score":      score,
+			"position":   position,
+			"finishedAt": finishedAt,
+		})
+	}
+
+	return results, nil
+}
+
+// UpdateRoomStatus updates the status of a multiplayer room
+func (db *DB) UpdateRoomStatus(roomID string, status string) error {
+	query := `UPDATE multiplayer_rooms SET status = $2 WHERE id = $1`
+	_, err := db.conn.Exec(query, roomID, status)
+	if err != nil {
+		return fmt.Errorf("failed to update room status: %w", err)
+	}
+	return nil
+}
+
+// GetUsernameByID gets username by user ID
+func (db *DB) GetUsernameByID(userID int) (string, error) {
+	var username string
+	query := `SELECT username FROM users WHERE id = $1`
+	err := db.conn.QueryRow(query, userID).Scan(&username)
+	if err != nil {
+		return "", fmt.Errorf("failed to get username: %w", err)
+	}
+	return username, nil
+}
+
+// UpdatePlayerStatus updates a player's status in a multiplayer room
+func (db *DB) UpdatePlayerStatus(roomID string, userID int, status string) error {
+	query := `
+		UPDATE multiplayer_players 
+		SET status = $3
+		WHERE room_id = $1 AND user_id = $2
+	`
+	_, err := db.conn.Exec(query, roomID, userID, status)
+	if err != nil {
+		return fmt.Errorf("failed to update player status: %w", err)
+	}
+	return nil
+}
+
 // Close closes the database connection
 func (db *DB) Close() error {
 	return db.conn.Close()

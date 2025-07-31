@@ -380,6 +380,17 @@ function handleKeyPress(event) {
             if (gameMenuOverlay.classList.contains('hidden')) {
                 // Open game menu and pause
                 gameMenuOverlay.classList.remove('hidden');
+
+                // Hide restart button if in multiplayer mode
+                const restartBtn = document.getElementById('restart-game-btn');
+                if (restartBtn) {
+                    if (window.isMultiplayer) {
+                        restartBtn.style.display = 'none';
+                    } else {
+                        restartBtn.style.display = 'block';
+                    }
+                }
+
                 if (ws && ws.readyState === WebSocket.OPEN) {
                     ws.send(JSON.stringify({ type: 'input', key: 'pause' }));
                 }
@@ -627,3 +638,214 @@ function renderHoldPiece(holdPiece) {
         }
     }
 }
+
+// Multiplayer game functionality
+function startMultiplayerGame(roomId, multiplayerWs) {
+    console.log('Starting multiplayer game for room:', roomId);
+
+    // Clean up any existing game first
+    cleanupGame();
+
+    // Store multiplayer WebSocket reference
+    window.multiplayerWs = multiplayerWs;
+    window.isMultiplayer = true;
+    window.currentRoomId = roomId;
+
+    // Connect to game WebSocket
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsURL = `${protocol}//${window.location.host}/ws/game?room=${roomId}&multiplayer=true`;
+
+    ws = new WebSocket(wsURL);
+
+    ws.onopen = () => {
+        console.log('Connected to multiplayer game server for room:', roomId);
+        document.addEventListener('keydown', handleKeyPress);
+
+        // Send multiplayer initialization
+        ws.send(JSON.stringify({
+            type: 'multiplayerInit',
+            roomId: roomId
+        }));
+    };
+
+    ws.onmessage = (event) => {
+        const gameState = JSON.parse(event.data);
+
+        if (gameState.type === 'multiplayerUpdate') {
+            handleMultiplayerUpdate(gameState);
+        } else if (gameState.type === 'gameOver') {
+            handleMultiplayerGameOver(gameState);
+        } else if (gameState.type === 'opponentFinished') {
+            handleOpponentFinished(gameState);
+        } else {
+            // Regular game state update
+            renderGame(gameState);
+            updateGameInfo(gameState);
+
+            // Send game state to other players
+            if (window.multiplayerWs && window.multiplayerWs.readyState === WebSocket.OPEN) {
+                window.multiplayerWs.send(JSON.stringify({
+                    type: 'game_state',
+                    data: {
+                        score: gameState.score,
+                        lines: gameState.lines,
+                        level: gameState.level,
+                        board: gameState.board
+                    }
+                }));
+            }
+
+            // Check for game over - CRITICAL: This needs to trigger multiplayer game over
+            if (gameState.gameOver) {
+                console.log('Game over detected in multiplayer game!');
+                handleMultiplayerGameOver(gameState);
+            }
+        }
+    }; ws.onclose = () => {
+        console.log('Disconnected from multiplayer game server.');
+        cleanupMultiplayerGame();
+    };
+
+    ws.onerror = (error) => {
+        console.error('Multiplayer Game WebSocket Error:', error);
+    };
+}
+
+function handleMultiplayerUpdate(gameState) {
+    console.log('Multiplayer update:', gameState);
+    // Update opponent board display if implemented
+    if (gameState.opponents) {
+        updateOpponentDisplays(gameState.opponents);
+    }
+}
+
+function handleMultiplayerGameOver(gameState) {
+    console.log('Multiplayer game over:', gameState);
+
+    // Send final results to multiplayer system
+    if (window.multiplayerWs && window.multiplayerWs.readyState === WebSocket.OPEN) {
+        window.multiplayerWs.send(JSON.stringify({
+            type: 'player_finished',
+            data: {
+                score: gameState.score,
+                lines: gameState.lines,
+                stats: gameState.stats,
+                position: gameState.position || 1
+            }
+        }));
+    }
+
+    // Show multiplayer game over screen
+    showMultiplayerGameOverScreen(gameState);
+}
+
+function handleOpponentFinished(gameState) {
+    console.log('Opponent finished:', gameState);
+    // Show notification that opponent finished
+    showOpponentFinishedNotification(gameState.playerName, gameState.position);
+}
+
+function showMultiplayerGameOverScreen(gameState) {
+    // Create multiplayer game over overlay
+    const overlay = document.createElement('div');
+    overlay.className = 'game-over-overlay';
+    overlay.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.9);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 10000;
+        color: white;
+        text-align: center;
+    `;
+
+    const content = document.createElement('div');
+    content.innerHTML = `
+        <h2>Game Over!</h2>
+        <p>Your Score: ${formatScore(gameState.score)}</p>
+        <p>Lines Cleared: ${gameState.lines || 0}</p>
+        <p>Position: ${gameState.position || 'Unknown'}</p>
+        <button onclick="returnToLobby()" style="margin: 10px; padding: 10px 20px; font-size: 16px;">Return to Lobby</button>
+        <button onclick="returnToMenu()" style="margin: 10px; padding: 10px 20px; font-size: 16px;">Main Menu</button>
+    `;
+
+    overlay.appendChild(content);
+    document.body.appendChild(overlay);
+}
+
+function showOpponentFinishedNotification(playerName, position) {
+    const notification = document.createElement('div');
+    notification.style.cssText = `
+        position: fixed;
+        top: 100px;
+        right: 20px;
+        background: #007bff;
+        color: white;
+        padding: 12px 20px;
+        border-radius: 4px;
+        z-index: 9999;
+        font-size: 14px;
+    `;
+    notification.textContent = `${playerName} finished in position ${position}!`;
+
+    document.body.appendChild(notification);
+
+    setTimeout(() => {
+        if (notification.parentNode) {
+            notification.parentNode.removeChild(notification);
+        }
+    }, 3000);
+}
+
+function updateOpponentDisplays(opponents) {
+    // This would update opponent board displays if we had them in the UI
+    console.log('Updating opponent displays:', opponents);
+}
+
+function cleanupMultiplayerGame() {
+    window.isMultiplayer = false;
+    window.currentRoomId = null;
+    window.multiplayerWs = null;
+    cleanupGame();
+}
+
+function returnToLobby() {
+    // Remove game over overlay
+    const overlay = document.querySelector('.game-over-overlay');
+    if (overlay) {
+        overlay.remove();
+    }
+
+    cleanupMultiplayerGame();
+
+    // Return to multiplayer lobby
+    if (window.showView && window.multiplayerManager) {
+        window.showView('multiplayer');
+        window.multiplayerManager.showTab('lobby');
+    }
+}
+
+function returnToMenu() {
+    // Remove game over overlay
+    const overlay = document.querySelector('.game-over-overlay');
+    if (overlay) {
+        overlay.remove();
+    }
+
+    cleanupMultiplayerGame();
+
+    // Return to main menu
+    if (window.showView) {
+        window.showView('mainMenu');
+    }
+}
+
+// Make functions globally available
+window.startMultiplayerGame = startMultiplayerGame;
+window.returnToLobby = returnToLobby;
+window.returnToMenu = returnToMenu;

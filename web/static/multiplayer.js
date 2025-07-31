@@ -120,15 +120,31 @@ class MultiplayerManager {
         const roomsHTML = this.rooms.map(room => {
             const currentPlayers = room.settings?.current_players || 0;
             const isFull = currentPlayers >= room.max_players;
+            const isActive = room.status === 'active';
+
+            let actionButton = '';
+            if (isActive) {
+                actionButton = `
+                    <div class="room-actions">
+                        <button onclick="event.stopPropagation(); multiplayerManager.spectateRoom('${room.id}')" 
+                                class="btn-spectate" style="background: #28a745; color: white; border: none; padding: 5px 10px; border-radius: 3px; cursor: pointer; margin-left: 10px;">
+                            Spectate
+                        </button>
+                    </div>
+                `;
+            } else if (!isFull) {
+                actionButton = '<span class="join-hint">Click to join</span>';
+            }
 
             return `
-                <div class="room-item" onclick="multiplayerManager.joinRoom('${room.id}')">
+                <div class="room-item ${isActive ? '' : 'joinable'}" ${!isActive && !isFull ? `onclick="multiplayerManager.joinRoom('${room.id}')"` : ''}>
                     <div class="room-header">
                         <span class="room-name">${this.escapeHtml(room.name)}</span>
-                        <span class="room-status ${isFull ? 'full' : ''}">${room.status}</span>
+                        <span class="room-status ${isFull ? 'full' : isActive ? 'active' : ''}">${room.status}</span>
                     </div>
                     <div class="room-info">
                         ${room.game_type} • ${currentPlayers}/${room.max_players} players
+                        ${actionButton}
                     </div>
                 </div>
             `;
@@ -232,7 +248,12 @@ class MultiplayerManager {
     handleWebSocketMessage(message) {
         switch (message.type) {
             case 'room_update':
-                this.currentRoom = message.data;
+                if (message.data && message.data.room) {
+                    this.currentRoom = message.data.room;
+                } else {
+                    this.currentRoom = message.data;
+                }
+                console.log('Room updated:', this.currentRoom);
                 this.updateLobbyDisplay();
                 break;
             case 'game_start':
@@ -240,6 +261,27 @@ class MultiplayerManager {
                 break;
             case 'game_state':
                 this.handleGameState(message.data);
+                break;
+            case 'player_finished':
+                this.handlePlayerFinished(message);
+                break;
+            case 'game_complete':
+                this.handleGameComplete(message.data);
+                break;
+            case 'player_disconnected':
+                this.showNotification(message.data.message, 'warning');
+                break;
+            case 'player_reconnected':
+                this.showNotification(message.data.message, 'success');
+                break;
+            case 'player_disconnected_timeout':
+                this.showNotification(message.data.message, 'error');
+                break;
+            case 'spectate_data':
+                this.handleSpectateData(message.data);
+                break;
+            case 'spectate_error':
+                this.showNotification(message.error, 'error');
                 break;
             case 'player_joined':
                 console.log('Player joined:', message.data.username);
@@ -311,8 +353,25 @@ class MultiplayerManager {
         if (!this.currentRoom) return;
 
         try {
-            await apiCall(`/room/${this.currentRoom.id}/ready`, 'POST');
-            // The room update will come via WebSocket
+            // Send ready state via WebSocket instead of REST API
+            if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+                this.isReady = !this.isReady;
+
+                this.ws.send(JSON.stringify({
+                    type: 'player_ready',
+                    room_id: this.currentRoom.id,
+                    data: {
+                        ready: this.isReady
+                    }
+                }));
+
+                // Update button text immediately for better UX
+                this.readyBtn.textContent = this.isReady ? 'Not Ready' : 'Ready';
+                console.log('Sent ready state:', this.isReady);
+            } else {
+                console.error('WebSocket not connected');
+                alert('Connection lost. Please try rejoining the room.');
+            }
         } catch (error) {
             console.error('Failed to toggle ready state:', error);
             alert('Failed to update ready state.');
@@ -365,9 +424,65 @@ class MultiplayerManager {
 
     handleGameStart(gameData) {
         console.log('Game starting!', gameData);
-        // This will be implemented when integrating with the game engine
-        // For now, just show an alert
-        alert('Game is starting!');
+
+        // Show countdown
+        this.showGameCountdown(() => {
+            // Start the actual multiplayer game
+            this.startMultiplayerGame();
+        });
+    }
+
+    showGameCountdown(callback) {
+        let countdown = 3;
+
+        // Create countdown overlay
+        const countdownOverlay = document.createElement('div');
+        countdownOverlay.className = 'countdown-overlay';
+        countdownOverlay.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10000;
+            font-size: 72px;
+            color: white;
+            font-weight: bold;
+        `;
+        countdownOverlay.textContent = countdown;
+        document.body.appendChild(countdownOverlay);
+
+        const countdownInterval = setInterval(() => {
+            countdown--;
+            if (countdown > 0) {
+                countdownOverlay.textContent = countdown;
+            } else {
+                countdownOverlay.textContent = 'GO!';
+                setTimeout(() => {
+                    document.body.removeChild(countdownOverlay);
+                    callback();
+                }, 500);
+                clearInterval(countdownInterval);
+            }
+        }, 1000);
+    }
+
+    startMultiplayerGame() {
+        // Switch to game view
+        if (window.showView) {
+            window.showView('game');
+        }
+
+        // Start the game with multiplayer flag
+        if (window.startMultiplayerGame) {
+            window.startMultiplayerGame(this.currentRoom.id, this.ws);
+        } else {
+            console.error('Multiplayer game start function not found');
+        }
     }
 
     handleGameState(gameState) {
@@ -387,6 +502,244 @@ class MultiplayerManager {
         const token = localStorage.getItem('devware_jwt');
         const username = localStorage.getItem('devware_username');
         return token && username ? { token, username } : null;
+    }
+
+    // Handle player finished notification
+    handlePlayerFinished(message) {
+        console.log('Player finished:', message.data);
+
+        if (message.data && message.data.playerName) {
+            this.showNotification(
+                `${message.data.playerName} finished in position ${message.data.position}!`,
+                'info'
+            );
+        }
+    }
+
+    // Handle game completion with final results
+    handleGameComplete(data) {
+        console.log('Game completed:', data);
+
+        if (data.results && Array.isArray(data.results)) {
+            this.showGameCompleteModal(data.results);
+        }
+    }
+
+    // Show game completion modal with results
+    showGameCompleteModal(results) {
+        // Create modal overlay
+        const overlay = document.createElement('div');
+        overlay.className = 'game-complete-overlay';
+        overlay.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.9);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10000;
+            color: white;
+            text-align: center;
+        `;
+
+        // Create content
+        const content = document.createElement('div');
+        content.style.cssText = `
+            background: #1a1a1a;
+            padding: 30px;
+            border-radius: 10px;
+            max-width: 500px;
+            width: 90%;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+        `;
+
+        let resultsHTML = '<h2 style="margin-bottom: 20px; color: #ffd700;">🏆 Game Complete!</h2>';
+        resultsHTML += '<div style="margin-bottom: 20px; text-align: left;">';
+
+        results.forEach((result, index) => {
+            const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : '🏅';
+            resultsHTML += `
+                <div style="padding: 10px; margin: 5px 0; background: #2a2a2a; border-radius: 5px; display: flex; justify-content: space-between; align-items: center;">
+                    <span>${medal} ${result.position}. ${this.escapeHtml(result.username)}</span>
+                    <span style="color: #00ff00; font-weight: bold;">${this.formatScore(result.score)}</span>
+                </div>
+            `;
+        });
+
+        resultsHTML += '</div>';
+        resultsHTML += `
+            <div style="margin-top: 20px;">
+                <button onclick="multiplayerManager.closeGameCompleteModal(); multiplayerManager.showTab('browser');" 
+                        style="margin: 0 10px; padding: 10px 20px; font-size: 16px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer;">
+                    Browse Rooms
+                </button>
+                <button onclick="multiplayerManager.closeGameCompleteModal(); window.showView('mainMenu');" 
+                        style="margin: 0 10px; padding: 10px 20px; font-size: 16px; background: #6c757d; color: white; border: none; border-radius: 5px; cursor: pointer;">
+                    Main Menu
+                </button>
+            </div>
+        `;
+
+        content.innerHTML = resultsHTML;
+        overlay.appendChild(content);
+        document.body.appendChild(overlay);
+
+        // Store reference for cleanup
+        this.gameCompleteModal = overlay;
+    }
+
+    // Close game complete modal
+    closeGameCompleteModal() {
+        if (this.gameCompleteModal) {
+            this.gameCompleteModal.remove();
+            this.gameCompleteModal = null;
+        }
+    }
+
+    // Show notification
+    showNotification(message, type = 'info') {
+        const notification = document.createElement('div');
+        notification.style.cssText = `
+            position: fixed;
+            top: 100px;
+            right: 20px;
+            padding: 12px 20px;
+            border-radius: 4px;
+            z-index: 9999;
+            font-size: 14px;
+            max-width: 300px;
+            word-wrap: break-word;
+        `;
+
+        // Set colors based on type
+        switch (type) {
+            case 'success':
+                notification.style.background = '#28a745';
+                notification.style.color = 'white';
+                break;
+            case 'error':
+                notification.style.background = '#dc3545';
+                notification.style.color = 'white';
+                break;
+            case 'warning':
+                notification.style.background = '#ffc107';
+                notification.style.color = 'black';
+                break;
+            default: // info
+                notification.style.background = '#007bff';
+                notification.style.color = 'white';
+        }
+
+        notification.textContent = message;
+        document.body.appendChild(notification);
+
+        // Auto-remove after 4 seconds
+        setTimeout(() => {
+            if (notification.parentNode) {
+                notification.parentNode.removeChild(notification);
+            }
+        }, 4000);
+    }
+
+    // Format score for display
+    formatScore(score) {
+        return score.toLocaleString();
+    }
+
+    // Spectate a room
+    async spectateRoom(roomId) {
+        console.log('Requesting to spectate room:', roomId);
+
+        try {
+            // Connect to multiplayer if not already connected
+            if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+                await this.connectToMultiplayer();
+            }
+
+            // Send spectate request
+            this.ws.send(JSON.stringify({
+                type: 'spectate_request',
+                room_id: roomId,
+                user_id: this.getCurrentUser()?.id || 0,
+                data: {}
+            }));
+
+            // Show spectator view
+            this.showSpectatorView(roomId);
+
+        } catch (error) {
+            console.error('Failed to spectate room:', error);
+            this.showNotification('Failed to start spectating. Please try again.', 'error');
+        }
+    }
+
+    // Handle spectate data from server
+    handleSpectateData(data) {
+        console.log('Received spectate data:', data);
+
+        if (!this.currentSpectatingRoom) {
+            return;
+        }
+
+        // Update spectator view with game data
+        const spectatorContent = document.querySelector('.spectator-content');
+        if (spectatorContent) {
+            let contentHTML = `
+                <div class="spectator-info">
+                    <h4>Room: ${this.escapeHtml(data.roomName || 'Unknown')}</h4>
+                    <p>Game Type: ${data.gameType || 'Unknown'}</p>
+                </div>
+                <div class="spectator-players">
+                    <h5>Players:</h5>
+            `;
+
+            if (data.playerInfo) {
+                Object.values(data.playerInfo).forEach(player => {
+                    contentHTML += `
+                        <div class="spectator-player">
+                            <span class="player-name">${this.escapeHtml(player.username)}</span>
+                            <span class="player-score">Score: ${this.formatScore(player.score || 0)}</span>
+                            <span class="player-status status-${player.status}">${player.status}</span>
+                        </div>
+                    `;
+                });
+            }
+
+            contentHTML += '</div>';
+            spectatorContent.innerHTML = contentHTML;
+        }
+    }
+
+    // Show spectator view
+    showSpectatorView(roomId) {
+        // Switch to a spectator tab/view
+        this.currentSpectatingRoom = roomId;
+
+        // Create spectator interface
+        const spectatorHTML = `
+            <div class="spectator-view">
+                <div class="spectator-header">
+                    <h3>Spectating Game</h3>
+                    <button onclick="multiplayerManager.stopSpectating()" class="btn-stop-spectate">Stop Spectating</button>
+                </div>
+                <div class="spectator-content">
+                    <div class="loading">Loading game data...</div>
+                </div>
+            </div>
+        `;
+
+        // Show spectator view (you'd need to create this UI element)
+        this.showNotification('Spectating mode started! (UI in development)', 'info');
+    }
+
+    // Stop spectating
+    stopSpectating() {
+        this.currentSpectatingRoom = null;
+        this.showTab('browser');
+        this.showNotification('Stopped spectating', 'info');
     }
 
     escapeHtml(text) {

@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"log"
 
 	"github.com/isaacjstriker/devware/internal/api"
@@ -30,8 +29,7 @@ func main() {
 	}
 
 	// Create and start the API server
-	listenAddr := fmt.Sprintf("%s:%d", cfg.ServerHost, cfg.ServerPort)
-	server := api.NewAPIServer(listenAddr, db, cfg)
+	server := api.NewAPIServer(cfg, db)
 
 	// The server now runs indefinitely, so the CLI part is removed.
 	// For game logic, we will later integrate it via WebSockets.

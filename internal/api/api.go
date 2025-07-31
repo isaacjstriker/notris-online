@@ -1,6 +1,7 @@
 package api
 
 import (
+	"fmt"
 	"io/fs"
 	"log"
 	"net/http"
@@ -20,13 +21,27 @@ type APIServer struct {
 }
 
 // NewAPIServer creates a new APIServer instance
-func NewAPIServer(listenAddr string, db *database.DB, config *config.Config) *APIServer {
-	return &APIServer{
-		listenAddr: listenAddr,
+func NewAPIServer(cfg *config.Config, db *database.DB) *APIServer {
+	server := &APIServer{
+		config:     cfg,
 		db:         db,
-		config:     config,
-		wsHub:      multiplayer.NewHub(db),
+		listenAddr: fmt.Sprintf("%s:%d", cfg.ServerHost, cfg.ServerPort),
 	}
+
+	// Create JWT validator function
+	jwtValidator := func(tokenString string) (*multiplayer.UserInfo, error) {
+		userInfo, err := server.validateJWT(tokenString)
+		if err != nil {
+			return nil, err
+		}
+		return &multiplayer.UserInfo{
+			ID:       userInfo.UserID,
+			Username: userInfo.Username,
+		}, nil
+	}
+
+	server.wsHub = multiplayer.NewHub(db, jwtValidator)
+	return server
 }
 
 // Start runs the HTTP server
