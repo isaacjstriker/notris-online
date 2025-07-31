@@ -156,9 +156,31 @@
             <div id="leaderboard-view" class="hidden">
                 <h2>Leaderboards</h2>
                 <div class="leaderboard-controls">
-                    <button id="back-to-menu-from-leaderboard-btn">Back to Menu</button>
+                    <div class="filter-tabs">
+                        <div class="tab-group">
+                            <span class="tab-label">Time Period:</span>
+                            <button class="tab-btn active" data-period="all">All Time</button>
+                            <button class="tab-btn" data-period="monthly">Monthly</button>
+                            <button class="tab-btn" data-period="weekly">Weekly</button>
+                            <button class="tab-btn" data-period="daily">Daily</button>
+                        </div>
+                        <div class="tab-group">
+                            <span class="tab-label">Category:</span>
+                            <button class="category-btn active" data-category="score">High Score</button>
+                            <button class="category-btn" data-category="speed">Speed</button>
+                            <button class="category-btn" data-category="efficiency">Efficiency</button>
+                            <button class="category-btn" data-category="endurance">Endurance</button>
+                        </div>
+                    </div>
+                    <button id="back-to-menu-from-leaderboard-btn" class="back-btn">Back to Menu</button>
                 </div>
-                <div id="leaderboard-content"></div>
+                <div class="leaderboard-container">
+                    <div id="leaderboard-content" class="leaderboard-main"></div>
+                    <div id="recent-activity" class="recent-activity">
+                        <h3>Recent Games</h3>
+                        <div id="recent-games-list"></div>
+                    </div>
+                </div>
             </div>
         </main>
     </div>

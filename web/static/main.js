@@ -147,6 +147,31 @@ document.addEventListener('DOMContentLoaded', () => {
         await loadLeaderboard();
     });
 
+    // Leaderboard filter tabs
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+            // Update active tab
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+
+            // Update current options and reload
+            currentLeaderboardOptions.period = btn.dataset.period;
+            await loadLeaderboard();
+        });
+    });
+
+    document.querySelectorAll('.category-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+            // Update active category
+            document.querySelectorAll('.category-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+
+            // Update current options and reload
+            currentLeaderboardOptions.category = btn.dataset.category;
+            await loadLeaderboard();
+        });
+    });
+
     // --- Initialization ---
     updateAuthUI();
     showView('mainMenu');

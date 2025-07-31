@@ -42,8 +42,22 @@ function loginUser(username, password) {
     return apiRequest('POST', '/login', { username, password });
 }
 
-function getLeaderboard(gameType, limit = 15) {
-    return apiRequest('GET', `/leaderboard/${gameType}?limit=${limit}`);
+function getLeaderboard(gameType, options = {}) {
+    const params = new URLSearchParams();
+
+    if (options.limit) params.append('limit', options.limit);
+    if (options.period) params.append('period', options.period);
+    if (options.category) params.append('category', options.category);
+    if (options.includeAchievements) params.append('include_achievements', 'true');
+
+    const queryString = params.toString();
+    const url = `/leaderboard/${gameType}${queryString ? '?' + queryString : ''}`;
+
+    return apiRequest('GET', url);
+}
+
+function getRecentGames(gameType, limit = 10) {
+    return apiRequest('GET', `/recent/${gameType}?limit=${limit}`);
 }
 
 // Submit a game score

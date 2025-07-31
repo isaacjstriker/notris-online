@@ -34,12 +34,25 @@ type GameScore struct {
 
 // LeaderboardEntry represents a single entry in the leaderboard
 type LeaderboardEntry struct {
-	Username    string    `json:"username"`
-	GameType    string    `json:"game_type"`
-	BestScore   int       `json:"best_score"`
-	AvgScore    float64   `json:"avg_score"`
-	GamesPlayed int       `json:"games_played"`
-	LastPlayed  time.Time `json:"last_played"`
+	Username     string                 `json:"username"`
+	GameType     string                 `json:"game_type"`
+	BestScore    int                    `json:"best_score"`
+	AvgScore     float64                `json:"avg_score"`
+	GamesPlayed  int                    `json:"games_played"`
+	LastPlayed   time.Time              `json:"last_played"`
+	TotalLines   int                    `json:"total_lines,omitempty"`
+	AvgPPM       float64                `json:"avg_ppm,omitempty"`
+	BestTime     float64                `json:"best_time,omitempty"`
+	TotalTime    float64                `json:"total_time,omitempty"`
+	Achievements []string               `json:"achievements,omitempty"`
+	Metadata     map[string]interface{} `json:"metadata,omitempty"`
+}
+
+// LeaderboardFilter represents filtering options for leaderboards
+type LeaderboardFilter struct {
+	TimePeriod string // "daily", "weekly", "monthly", "all"
+	Category   string // "score", "speed", "efficiency", "endurance"
+	UserID     *int   // Optional filter for specific user
 }
 
 // UserStats represents user statistics for a specific game
@@ -205,20 +218,100 @@ func (db *DB) SaveGameScore(userID int, gameType string, score int, metadata map
 
 // GetLeaderboard retrieves the leaderboard for a specific game
 func (db *DB) GetLeaderboard(gameType string, limit int) ([]LeaderboardEntry, error) {
-	query := `
-        SELECT 
-            u.username,
-            MAX(gs.score) as best_score,
-            AVG(gs.score) as avg_score,
-            COUNT(gs.id) as games_played,
-            MAX(gs.played_at) as last_played
+	return db.GetFilteredLeaderboard(gameType, limit, LeaderboardFilter{TimePeriod: "all", Category: "score"})
+}
+
+// GetFilteredLeaderboard retrieves the leaderboard with advanced filtering
+func (db *DB) GetFilteredLeaderboard(gameType string, limit int, filter LeaderboardFilter) ([]LeaderboardEntry, error) {
+	// Build time filter condition
+	timeCondition := ""
+	switch filter.TimePeriod {
+	case "daily":
+		timeCondition = "AND gs.played_at >= NOW() - INTERVAL '1 day'"
+	case "weekly":
+		timeCondition = "AND gs.played_at >= NOW() - INTERVAL '1 week'"
+	case "monthly":
+		timeCondition = "AND gs.played_at >= NOW() - INTERVAL '1 month'"
+	default: // "all"
+		timeCondition = ""
+	}
+
+	// Build category-specific ordering
+	var orderBy string
+	var selectFields string
+
+	switch filter.Category {
+	case "speed":
+		// Fastest completion time (from metadata)
+		selectFields = `
+			u.username,
+			MAX(gs.score) as best_score,
+			AVG(gs.score) as avg_score,
+			COUNT(gs.id) as games_played,
+			MAX(gs.played_at) as last_played,
+			MIN((gs.metadata->>'time_played')::float) as best_time,
+			AVG((gs.metadata->>'time_played')::float) as total_time,
+			SUM(COALESCE((gs.metadata->>'lines_cleared')::int, 0)) as total_lines,
+			AVG(COALESCE((gs.metadata->>'ppm')::float, 0)) as avg_ppm
+		`
+		orderBy = "best_time ASC NULLS LAST"
+	case "efficiency":
+		// Highest pieces per minute
+		selectFields = `
+			u.username,
+			MAX(gs.score) as best_score,
+			AVG(gs.score) as avg_score,
+			COUNT(gs.id) as games_played,
+			MAX(gs.played_at) as last_played,
+			MIN((gs.metadata->>'time_played')::float) as best_time,
+			AVG((gs.metadata->>'time_played')::float) as total_time,
+			SUM(COALESCE((gs.metadata->>'lines_cleared')::int, 0)) as total_lines,
+			AVG(COALESCE((gs.metadata->>'ppm')::float, 0)) as avg_ppm
+		`
+		orderBy = "avg_ppm DESC NULLS LAST"
+	case "endurance":
+		// Longest game time
+		selectFields = `
+			u.username,
+			MAX(gs.score) as best_score,
+			AVG(gs.score) as avg_score,
+			COUNT(gs.id) as games_played,
+			MAX(gs.played_at) as last_played,
+			MAX((gs.metadata->>'time_played')::float) as best_time,
+			AVG((gs.metadata->>'time_played')::float) as total_time,
+			SUM(COALESCE((gs.metadata->>'lines_cleared')::int, 0)) as total_lines,
+			AVG(COALESCE((gs.metadata->>'ppm')::float, 0)) as avg_ppm
+		`
+		orderBy = "best_time DESC NULLS LAST"
+	default: // "score"
+		selectFields = `
+			u.username,
+			MAX(gs.score) as best_score,
+			AVG(gs.score) as avg_score,
+			COUNT(gs.id) as games_played,
+			MAX(gs.played_at) as last_played,
+			MIN((gs.metadata->>'time_played')::float) as best_time,
+			AVG((gs.metadata->>'time_played')::float) as total_time,
+			SUM(COALESCE((gs.metadata->>'lines_cleared')::int, 0)) as total_lines,
+			AVG(COALESCE((gs.metadata->>'ppm')::float, 0)) as avg_ppm
+		`
+		orderBy = "best_score DESC"
+	}
+
+	userFilter := ""
+	if filter.UserID != nil {
+		userFilter = fmt.Sprintf("AND u.id = %d", *filter.UserID)
+	}
+
+	query := fmt.Sprintf(`
+        SELECT %s
         FROM users u
         JOIN game_scores gs ON u.id = gs.user_id
-        WHERE gs.game_type = $1
+        WHERE gs.game_type = $1 %s %s
         GROUP BY u.id, u.username
-        ORDER BY best_score DESC
+        ORDER BY %s
         LIMIT $2
-    `
+    `, selectFields, timeCondition, userFilter, orderBy)
 
 	rows, err := db.conn.Query(query, gameType, limit)
 	if err != nil {
@@ -229,19 +322,38 @@ func (db *DB) GetLeaderboard(gameType string, limit int) ([]LeaderboardEntry, er
 	var entries []LeaderboardEntry
 	for rows.Next() {
 		var entry LeaderboardEntry
+		var bestTime, totalTime, avgPPM sql.NullFloat64
+		var totalLines sql.NullInt64
 
 		err := rows.Scan(
 			&entry.Username,
 			&entry.BestScore,
 			&entry.AvgScore,
 			&entry.GamesPlayed,
-			&entry.LastPlayed, // PostgreSQL returns time.Time directly
+			&entry.LastPlayed,
+			&bestTime,
+			&totalTime,
+			&totalLines,
+			&avgPPM,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan leaderboard entry: %w", err)
 		}
 
 		entry.GameType = gameType
+		if bestTime.Valid {
+			entry.BestTime = bestTime.Float64
+		}
+		if totalTime.Valid {
+			entry.TotalTime = totalTime.Float64
+		}
+		if totalLines.Valid {
+			entry.TotalLines = int(totalLines.Int64)
+		}
+		if avgPPM.Valid {
+			entry.AvgPPM = avgPPM.Float64
+		}
+
 		entries = append(entries, entry)
 	}
 
@@ -275,6 +387,140 @@ func (db *DB) GetUserStats(userID int, gameType string) (*LeaderboardEntry, erro
 	}
 
 	return &entry, nil
+}
+
+// GetUserAchievements calculates achievements for a user based on their game history
+func (db *DB) GetUserAchievements(userID int, gameType string) ([]string, error) {
+	var achievements []string
+
+	// Query user's game statistics
+	query := `
+		SELECT 
+			COUNT(*) as total_games,
+			MAX(score) as best_score,
+			AVG(score) as avg_score,
+			SUM(COALESCE((metadata->>'lines_cleared')::int, 0)) as total_lines,
+			MAX(COALESCE((metadata->>'lines_cleared')::int, 0)) as max_lines,
+			AVG(COALESCE((metadata->>'ppm')::float, 0)) as avg_ppm,
+			MAX(COALESCE((metadata->>'ppm')::float, 0)) as max_ppm,
+			MIN((metadata->>'time_played')::float) as best_time,
+			COUNT(CASE WHEN (metadata->>'tetrises')::int > 0 THEN 1 END) as games_with_tetris
+		FROM game_scores 
+		WHERE user_id = $1 AND game_type = $2
+	`
+
+	var totalGames, bestScore, maxLines, gamesWithTetris sql.NullInt64
+	var avgScore, avgPPM, maxPPM, bestTime sql.NullFloat64
+	var totalLines sql.NullInt64
+
+	err := db.conn.QueryRow(query, userID, gameType).Scan(
+		&totalGames, &bestScore, &avgScore, &totalLines, &maxLines,
+		&avgPPM, &maxPPM, &bestTime, &gamesWithTetris,
+	)
+	if err != nil {
+		return achievements, fmt.Errorf("failed to get user achievements: %w", err)
+	}
+
+	// Calculate achievements based on stats
+	if totalGames.Valid {
+		if totalGames.Int64 >= 1 {
+			achievements = append(achievements, "First Game")
+		}
+		if totalGames.Int64 >= 10 {
+			achievements = append(achievements, "Getting Started")
+		}
+		if totalGames.Int64 >= 50 {
+			achievements = append(achievements, "Dedicated Player")
+		}
+		if totalGames.Int64 >= 100 {
+			achievements = append(achievements, "Tetris Master")
+		}
+	}
+
+	if bestScore.Valid {
+		if bestScore.Int64 >= 10000 {
+			achievements = append(achievements, "High Scorer")
+		}
+		if bestScore.Int64 >= 50000 {
+			achievements = append(achievements, "Score Champion")
+		}
+		if bestScore.Int64 >= 100000 {
+			achievements = append(achievements, "Legendary Score")
+		}
+	}
+
+	if maxPPM.Valid && maxPPM.Float64 >= 30 {
+		achievements = append(achievements, "Speed Demon")
+	}
+	if maxPPM.Valid && maxPPM.Float64 >= 50 {
+		achievements = append(achievements, "Lightning Fast")
+	}
+
+	if gamesWithTetris.Valid && gamesWithTetris.Int64 > 0 {
+		achievements = append(achievements, "First Tetris")
+	}
+	if gamesWithTetris.Valid && gamesWithTetris.Int64 >= 5 {
+		achievements = append(achievements, "Tetris Expert")
+	}
+
+	if totalLines.Valid && totalLines.Int64 >= 100 {
+		achievements = append(achievements, "Line Clearer")
+	}
+	if totalLines.Valid && totalLines.Int64 >= 1000 {
+		achievements = append(achievements, "Line Master")
+	}
+
+	return achievements, nil
+}
+
+// GetRecentGames gets recent games for activity feed
+func (db *DB) GetRecentGames(gameType string, limit int) ([]GameScore, error) {
+	query := `
+		SELECT gs.id, gs.user_id, gs.game_type, gs.score, gs.metadata, gs.played_at, u.username
+		FROM game_scores gs
+		JOIN users u ON gs.user_id = u.id
+		WHERE gs.game_type = $1
+		ORDER BY gs.played_at DESC
+		LIMIT $2
+	`
+
+	rows, err := db.conn.Query(query, gameType, limit)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get recent games: %w", err)
+	}
+	defer rows.Close()
+
+	var games []GameScore
+	for rows.Next() {
+		var game GameScore
+		var username string
+		var metadataJSON []byte
+
+		err := rows.Scan(
+			&game.ID, &game.UserID, &game.GameType, &game.Score,
+			&metadataJSON, &game.PlayedAt, &username,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan recent game: %w", err)
+		}
+
+		// Parse metadata
+		if len(metadataJSON) > 0 {
+			if err := json.Unmarshal(metadataJSON, &game.AdditionalData); err != nil {
+				game.AdditionalData = make(map[string]interface{})
+			}
+		}
+
+		// Add username to metadata for easier access
+		if game.AdditionalData == nil {
+			game.AdditionalData = make(map[string]interface{})
+		}
+		game.AdditionalData["username"] = username
+
+		games = append(games, game)
+	}
+
+	return games, nil
 }
 
 // Close closes the database connection

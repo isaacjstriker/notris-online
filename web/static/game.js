@@ -1,46 +1,247 @@
-// This file will contain placeholder game logic and leaderboard rendering.
+// Enhanced leaderboard system with multiple views and categories
+
+let currentLeaderboardOptions = {
+    period: 'all',
+    category: 'score',
+    limit: 15,
+    includeAchievements: true
+};
 
 async function loadLeaderboard() {
     const contentDiv = document.getElementById('leaderboard-content');
-    const gameType = 'tetris'; // Hardcoded to tetris
+    const gameType = 'tetris';
 
-    contentDiv.innerHTML = '<p>Loading...</p>';
+    contentDiv.innerHTML = '<div class="loading-spinner">Loading leaderboard...</div>';
 
     try {
-        const entries = await getLeaderboard(gameType);
-        if (!entries || entries.length === 0) {
-            contentDiv.innerHTML = '<p>No scores yet. Be the first!</p>';
-            return;
-        }
+        // Load both leaderboard and recent games
+        const [entries, recentGames] = await Promise.all([
+            getLeaderboard(gameType, currentLeaderboardOptions),
+            getRecentGames(gameType, 5)
+        ]);
 
-        const table = document.createElement('table');
-        table.innerHTML = `
-            <thead>
-                <tr>
-                    <th>Rank</th>
-                    <th>Player</th>
-                    <th>Best Score</th>
-                    <th>Games Played</th>
-                    <th>Average Score</th>
-                </tr>
-            </thead>
-            <tbody>
-                ${entries.map((entry, index) => `
-                    <tr>
-                        <td>${index + 1}</td>
-                        <td>${escapeHTML(entry.username)}</td>
-                        <td>${entry.best_score}</td>
-                        <td>${entry.games_played}</td>
-                        <td>${entry.avg_score.toFixed(1)}</td>
-                    </tr>
-                `).join('')}
-            </tbody>
-        `;
-        contentDiv.innerHTML = '';
-        contentDiv.appendChild(table);
+        renderLeaderboard(entries);
+        renderRecentGames(recentGames);
     } catch (error) {
         contentDiv.innerHTML = `<p class="error-message">Failed to load leaderboard: ${error.message}</p>`;
     }
+}
+
+function renderLeaderboard(entries) {
+    const contentDiv = document.getElementById('leaderboard-content');
+
+    if (!entries || entries.length === 0) {
+        contentDiv.innerHTML = '<div class="empty-state">No scores yet. Be the first!</div>';
+        return;
+    }
+
+    // Create table based on current category
+    const table = document.createElement('table');
+    table.className = 'leaderboard-table';
+
+    let tableHTML = '';
+
+    // Category-specific headers and data
+    switch (currentLeaderboardOptions.category) {
+        case 'speed':
+            tableHTML = `
+                <thead>
+                    <tr>
+                        <th>Rank</th>
+                        <th>Player</th>
+                        <th>Best Time</th>
+                        <th>Best Score</th>
+                        <th>Games</th>
+                        <th>Achievements</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${entries.map((entry, index) => `
+                        <tr ${isCurrentUser(entry.username) ? 'class="current-user"' : ''}>
+                            <td class="rank-cell">${getRankIcon(index + 1)}${index + 1}</td>
+                            <td class="player-cell">${escapeHTML(entry.username)}</td>
+                            <td class="stat-cell">${formatTime(entry.best_time)}</td>
+                            <td class="score-cell">${formatScore(entry.best_score)}</td>
+                            <td class="games-cell">${entry.games_played}</td>
+                            <td class="achievements-cell">${formatAchievements(entry.achievements)}</td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+            `;
+            break;
+
+        case 'efficiency':
+            tableHTML = `
+                <thead>
+                    <tr>
+                        <th>Rank</th>
+                        <th>Player</th>
+                        <th>Avg PPM</th>
+                        <th>Lines Cleared</th>
+                        <th>Games</th>
+                        <th>Achievements</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${entries.map((entry, index) => `
+                        <tr ${isCurrentUser(entry.username) ? 'class="current-user"' : ''}>
+                            <td class="rank-cell">${getRankIcon(index + 1)}${index + 1}</td>
+                            <td class="player-cell">${escapeHTML(entry.username)}</td>
+                            <td class="stat-cell">${entry.avg_ppm ? entry.avg_ppm.toFixed(1) : 'N/A'}</td>
+                            <td class="lines-cell">${entry.total_lines || 0}</td>
+                            <td class="games-cell">${entry.games_played}</td>
+                            <td class="achievements-cell">${formatAchievements(entry.achievements)}</td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+            `;
+            break;
+
+        case 'endurance':
+            tableHTML = `
+                <thead>
+                    <tr>
+                        <th>Rank</th>
+                        <th>Player</th>
+                        <th>Longest Game</th>
+                        <th>Total Time</th>
+                        <th>Games</th>
+                        <th>Achievements</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${entries.map((entry, index) => `
+                        <tr ${isCurrentUser(entry.username) ? 'class="current-user"' : ''}>
+                            <td class="rank-cell">${getRankIcon(index + 1)}${index + 1}</td>
+                            <td class="player-cell">${escapeHTML(entry.username)}</td>
+                            <td class="stat-cell">${formatTime(entry.best_time)}</td>
+                            <td class="time-cell">${formatTime(entry.total_time)}</td>
+                            <td class="games-cell">${entry.games_played}</td>
+                            <td class="achievements-cell">${formatAchievements(entry.achievements)}</td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+            `;
+            break;
+
+        default: // score
+            tableHTML = `
+                <thead>
+                    <tr>
+                        <th>Rank</th>
+                        <th>Player</th>
+                        <th>Best Score</th>
+                        <th>Avg Score</th>
+                        <th>Games</th>
+                        <th>Achievements</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${entries.map((entry, index) => `
+                        <tr ${isCurrentUser(entry.username) ? 'class="current-user"' : ''}>
+                            <td class="rank-cell">${getRankIcon(index + 1)}${index + 1}</td>
+                            <td class="player-cell">${escapeHTML(entry.username)}</td>
+                            <td class="score-cell">${formatScore(entry.best_score)}</td>
+                            <td class="avg-cell">${entry.avg_score.toFixed(0)}</td>
+                            <td class="games-cell">${entry.games_played}</td>
+                            <td class="achievements-cell">${formatAchievements(entry.achievements)}</td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+            `;
+    }
+
+    table.innerHTML = tableHTML;
+    contentDiv.innerHTML = '';
+    contentDiv.appendChild(table);
+}
+
+function renderRecentGames(games) {
+    const recentDiv = document.getElementById('recent-games-list');
+
+    if (!games || games.length === 0) {
+        recentDiv.innerHTML = '<p class="empty-recent">No recent games</p>';
+        return;
+    }
+
+    const gamesList = games.map(game => `
+        <div class="recent-game-item">
+            <div class="recent-game-player">${escapeHTML(game.additional_data?.username || 'Unknown')}</div>
+            <div class="recent-game-score">${formatScore(game.score)}</div>
+            <div class="recent-game-time">${formatTimeAgo(game.played_at)}</div>
+            ${game.additional_data?.lines_cleared ? `<div class="recent-game-lines">${game.additional_data.lines_cleared} lines</div>` : ''}
+        </div>
+    `).join('');
+
+    recentDiv.innerHTML = gamesList;
+}
+
+// Helper functions for formatting
+function getRankIcon(rank) {
+    switch (rank) {
+        case 1: return '🥇 ';
+        case 2: return '🥈 ';
+        case 3: return '🥉 ';
+        default: return '';
+    }
+}
+
+function formatScore(score) {
+    return score.toLocaleString();
+}
+
+function formatTime(seconds) {
+    if (!seconds || seconds === 0) return 'N/A';
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+}
+
+function formatTimeAgo(dateStr) {
+    const date = new Date(dateStr);
+    const now = new Date();
+    const diffMs = now - date;
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+
+    if (diffMins < 1) return 'Just now';
+    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+    return `${diffDays}d ago`;
+}
+
+function formatAchievements(achievements) {
+    if (!achievements || achievements.length === 0) return '<span class="no-achievements">-</span>';
+
+    const badgeMap = {
+        'First Game': '🎮',
+        'Getting Started': '🚀',
+        'Dedicated Player': '⭐',
+        'Tetris Master': '👑',
+        'High Scorer': '🎯',
+        'Score Champion': '🏆',
+        'Legendary Score': '💎',
+        'Speed Demon': '⚡',
+        'Lightning Fast': '🔥',
+        'First Tetris': '🧩',
+        'Tetris Expert': '🎪',
+        'Line Clearer': '📏',
+        'Line Master': '🏁'
+    };
+
+    const badges = achievements.slice(0, 3).map(achievement =>
+        `<span class="achievement-badge" title="${achievement}">${badgeMap[achievement] || '🏅'}</span>`
+    ).join('');
+
+    const extraCount = achievements.length > 3 ? `<span class="extra-achievements">+${achievements.length - 3}</span>` : '';
+
+    return badges + extraCount;
+}
+
+function isCurrentUser(username) {
+    const currentUser = localStorage.getItem('username');
+    return currentUser && currentUser === username;
 }
 
 function escapeHTML(str) {
