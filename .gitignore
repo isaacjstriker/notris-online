@@ -1,2 +1,5 @@
 .env
+.env.example
 todo.md
+DEPLOYMENT.md
+/docs

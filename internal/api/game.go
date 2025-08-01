@@ -61,7 +61,11 @@ func gameLoop(conn *websocket.Conn, game *tetris.Tetris) {
 			err := conn.ReadJSON(&msg)
 			if err != nil {
 				return
-			} else if msg.Type == "setLevel" {
+			}
+			switch msg.Type {
+case "input":
+				inputChan <- msg.Key
+			case "setLevel":
 				game.SetLevel(msg.Level)
 			}
 		}

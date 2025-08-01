@@ -1,10 +1,8 @@
 package tetris
 
 import (
-	"fmt"
 	"math/rand"
 	"os"
-	"strings"
 	"time"
 )
 
@@ -304,75 +302,6 @@ func (t *Tetris) togglePause() {
 		}
 		t.paused = !t.paused
 	}
-}
-
-func (t *Tetris) render() {
-	if t.currentPiece == nil {
-		return
-	}
-
-	fmt.Print("\033[2J\033[H")
-
-	fmt.Printf("TETRIS | Score: %d | Lines: %d | Level: %d\n", t.score, t.lines, t.level)
-	fmt.Println(strings.Repeat("═", 50))
-
-	display := make([][]string, BoardHeight)
-	for i := range display {
-		display[i] = make([]string, BoardWidth)
-		for j := range display[i] {
-			if t.board[i][j] == 0 {
-				if supportsColor() {
-					display[i][j] = "  "
-				} else {
-					display[i][j] = ".."
-				}
-			} else {
-				display[i][j] = pieceColors[t.board[i][j]-1]
-			}
-		}
-	}
-
-	if t.currentPiece != nil {
-		for py := 0; py < len(t.currentPiece.shape); py++ {
-			for px := 0; px < len(t.currentPiece.shape[py]); px++ {
-				if t.currentPiece.shape[py][px] == 1 {
-					boardY := t.currentPiece.y + py
-					boardX := t.currentPiece.x + px
-					if boardY >= 0 && boardY < BoardHeight && boardX >= 0 && boardX < BoardWidth {
-						display[boardY][boardX] = pieceColors[t.currentPiece.pieceType]
-					}
-				}
-			}
-		}
-	}
-
-	for _, row := range display {
-		fmt.Print("║")
-		for _, cell := range row {
-			fmt.Print(cell)
-		}
-		fmt.Print("║")
-		fmt.Println()
-	}
-
-	fmt.Println("╚" + strings.Repeat("═", BoardWidth*2) + "╝")
-
-	if t.nextPiece != nil {
-		fmt.Println("\nNext Piece:")
-		for py := 0; py < len(t.nextPiece.shape); py++ {
-			fmt.Print("  ")
-			for px := 0; px < len(t.nextPiece.shape[py]); px++ {
-				if t.nextPiece.shape[py][px] == 1 {
-					fmt.Print(pieceColors[t.nextPiece.pieceType])
-				} else {
-					fmt.Print("  ")
-				}
-			}
-			fmt.Println()
-		}
-	}
-
-	fmt.Println("\nControls: A/D=Move, S=Down, W=Rotate, Q=Quit")
 }
 
 func init() {
