@@ -1,119 +1,139 @@
-# Dev Ware
+# Notris Online
 
-Dev Ware is a CLI-based game suite and leaderboard system, built as my capstone project for Boot.dev. The name comes form the ecclectic 'Wario Ware' franchise, from which I took much inspiration. I even created sketch ideas of games on sticky notes, similar to the developers behind 'Wario Ware!'
+A real-time multiplayer Tetris game built with Go and WebSockets, featuring user authentication, room-based matchmaking, and live gameplay synchronization.
 
-## Why? (The Motivation)
+## Description
 
-This project serves as a capstone for the [Boot.dev](https://boot.dev) backend developer curriculum. The primary goal was to build a complete, deployable application that demonstrates proficiency in several key areas of backend development:
+Notris is a modern web-based Tetris implementation that allows players to compete against each other in real-time multiplayer matches. Players can create or join game rooms, ready up for matches, and play head-to-head Tetris with live opponent visibility and game state synchronization.
 
--   **Go Proficiency:** Writing clean, modular, and robust Go code for the core application logic.
--   **Database Integration:** Designing a database schema, writing SQL queries, and managing migrations for a PostgreSQL database.
--   **Scripting Engine Embedding:** Integrating a Lua scripting engine (`gopher-lua`) to allow for flexible and decoupled game logic.
--   **Cloud Deployment:** Preparing the application for a cloud environment and deploying it using modern platform-as-a-service (PaaS) tools like Render and Supabase.
--   **Security:** Implementing secure practices for user authentication (password hashing with bcrypt), session management (JWT), and code scanning (`gosec`).
+**Key Features:**
+- 🎮 **Real-time Multiplayer**: Play Tetris against opponents with live game state synchronization
+- 🏠 **Room System**: Create private or public rooms with customizable starting levels
+- 👥 **User Management**: Secure registration and authentication with JWT tokens
+- 📊 **Live Updates**: See your opponent's board, score, and progress in real-time
+- 🔄 **Reconnection Handling**: Automatic reconnection and proper disconnect notifications
+- ⏱️ **Match Timer**: Track game duration during multiplayer matches
+- 🎯 **Responsive Design**: Clean, modern web interface that works across devices
 
-## Technologies & Tools
+## Why?
 
-This project integrates a variety of modern technologies and tools to create a robust backend application.
+This project serves as a comprehensive demonstration of modern web application development, showcasing several key technical challenges:
 
-| Category              | Technology / Tool                                                              | Purpose                                                              |
-| --------------------- | ------------------------------------------------------------------------------ | -------------------------------------------------------------------- |
-| **Languages**         | Go, Lua, SQL                                                                   | Core application logic, game scripting, and database queries.        |
-| **Database**          | PostgreSQL                                                                     | Relational database for storing user and score data.                 |
-| **Go Libraries**      | `gopher-lua`, `go-keyboard`, `godotenv`, `pq`                                  | Lua embedding, terminal input, config loading, and DB driver.        |
-| **Tooling**           | `sqlc`, `goose`, `gosec`                                                       | Type-safe query generation, DB migrations, and security scanning.    |
-| **Platform & Services** | [Supabase](https://supabase.com), [Render](https://render.com), [GitHub](https://github.com) | Managed PostgreSQL hosting, cloud application deployment, and source control. |
+**Real-time Communication**: Building a responsive multiplayer experience requires careful WebSocket management, message routing, and state synchronization between clients.
+
+**Scalable Architecture**: The application demonstrates clean separation of concerns with a Go backend handling game logic and WebSocket connections, while a JavaScript frontend manages the user interface and real-time updates.
+
+**User Experience**: Creating an engaging multiplayer game involves solving complex UX challenges like connection handling, room management, player notifications, and seamless game state transitions.
+
+**Full-Stack Development**: The project integrates backend services (Go, PostgreSQL), real-time communication (WebSockets), and frontend technologies (HTML5 Canvas, JavaScript) into a cohesive application.
 
 ## Quick Start
 
-Follow these steps to get the application running locally.
+### Prerequisites
 
-### 1. Prerequisites
+- [Go](https://go.dev/doc/install) 1.19 or later
+- [PostgreSQL](https://www.postgresql.org/download/) database (local or cloud)
+- [Goose](https://github.com/pressly/goose) for database migrations:
+  ```bash
+  go install github.com/pressly/goose/v3/cmd/goose@latest
+  ```
 
--   [Go](https://go.dev/doc/install) (version 1.18 or later)
--   [PostgreSQL](https://www.postgresql.org/download/) installed locally, or a free database from [Supabase](https://supabase.com).
--   [Goose](https://github.com/pressly/goose) for database migrations. Install it with:
-    ```sh
-    go install github.com/pressly/goose/v3/cmd/goose@latest
-    ```
+### Installation
 
-### 2. Clone the Repository
+1. **Clone the repository**
+   ```bash
+   git clone https://github.com/isaacjstriker/devware.git
+   cd devware
+   ```
 
-```sh
-git clone https://github.com/isaacjstriker/devware.git
-cd devware
-```
+2. **Set up environment variables**
+   ```bash
+   cp .env.example .env
+   # Edit .env with your database connection details
+   ```
+   
+   Required environment variables:
+   ```env
+   DATABASE_URL="postgres://username:password@localhost/devware?sslmode=disable"
+   JWT_SECRET="your-secret-key-here"
+   PORT=8080
+   ```
 
-### 3. Configure Your Environment
+3. **Install dependencies**
+   ```bash
+   go mod tidy
+   ```
 
-The application is configured using a `.env` file.
+4. **Run database migrations**
+   ```bash
+   goose -dir sql/schema postgres "$DATABASE_URL" up
+   ```
 
-1.  **Create the `.env` file:**
-    ```sh
-    touch .env
-    ```
-2.  **Add your Database URL:** Open the `.env` file and add your PostgreSQL connection string.
-    ```properties
-    # Example for a local PostgreSQL database
-    DATABASE_URL="host=localhost user=postgres password=your_password dbname=devware sslmode=disable"
-    ```
-3.  **JWT Secret (Automatic):** The `JWT_SECRET` is required for security. The application will automatically generate a secure key and add it to your `.env` file the first time you run it.
+5. **Start the server**
+   ```bash
+   go run .
+   ```
 
-### 4. Run Database Migrations
-
-With your `DATABASE_URL` set in the `.env` file, run the migrations to create the necessary tables.
-
-```sh
-goose -dir "sql/schema" postgres "${DATABASE_URL}" up
-```
-
-### 5. Run the Application
-
-Install Go dependencies and run the main program.
-
-```sh
-go mod tidy
-go run .
-```
-If the `JWT_SECRET` was missing, the program will add it to your `.env` file and exit. Simply run `go run .` again to start the application.
+6. **Open your browser**
+   Navigate to `http://localhost:8080` to start playing!
 
 ## Usage
 
-Once the application is running, you will be greeted by the main menu.
+### Getting Started
+1. **Register an account** or log in if you already have one
+2. **Navigate to Multiplayer** from the main menu
+3. **Create a room** or **join an existing room**
+4. **Wait for another player** to join your room
+5. **Ready up** when you're prepared to play
+6. **Play Tetris** in real-time against your opponent!
 
--   Use the **Up/Down arrow keys** to navigate the menu.
--   Press **Enter** to select an option.
--   Press **'q'** to quit the application from the main menu.
+### Game Controls
+- **Arrow Keys**: Move and rotate pieces
+- **Spacebar**: Hard drop piece
+- **C**: Hold piece
+- **Escape**: Pause game / Open menu
 
-You can play games as a guest, but to save your scores to the leaderboard, you must register an account and log in.
-
-## Project Structure
-
-```
-.
-├── games/                # Game packages (Go) and scripts (Lua)
-│   ├── breakout/
-│   ├── tetris/
-│   └── typing/
-├── internal/             # Core application logic not meant for reuse
-│   ├── auth/             # User authentication and session management
-│   ├── config/           # Environment configuration loading
-│   ├── database/         # Database connection and query execution
-│   └── types/            # Shared data structures
-├── ui/                   # Reusable UI components (e.g., menu)
-├── .gitignore
-├── go.mod                # Go module dependencies
-├── go.sum
-├── main.go               # Application entry point
-└── README.md             # This file
-```
+### Multiplayer Features
+- **Room Browser**: See all available public rooms
+- **Custom Rooms**: Create private rooms with specific settings
+- **Real-time Sync**: Watch your opponent's board update live
+- **Disconnect Handling**: Proper notifications when players leave
+- **Match Timer**: Track how long each game lasts
 
 ## Contributing
 
-Contributions are welcome! If you have ideas for new games, features, or improvements, please follow these steps:
+We welcome contributions! Whether you want to fix bugs, add features, or improve documentation, here's how you can help:
 
-1.  **Fork** the repository.
-2.  Create a new **branch** for your feature (`git checkout -b feature/new-game`).
-3.  **Commit** your changes (`git commit -m 'Add new game: Space Invaders'`).
-4.  **Push** to the branch (`git push origin feature/new-game`).
-5.  Open a **Pull Request**.
+### Getting Started
+1. **Fork the repository** on GitHub
+2. **Clone your fork** locally
+3. **Create a feature branch**: `git checkout -b feature/amazing-feature`
+4. **Make your changes** and test thoroughly
+5. **Commit your changes**: `git commit -m "Add amazing feature"`
+6. **Push to your fork**: `git push origin feature/amazing-feature`
+7. **Open a Pull Request** with a clear description of your changes
+
+### Development Guidelines
+- **Code Style**: Follow standard Go conventions and gofmt formatting
+- **Testing**: Add tests for new functionality where appropriate
+- **Documentation**: Update README and code comments for significant changes
+- **Commits**: Use clear, descriptive commit messages
+
+### Areas for Contribution
+- 🎨 **UI/UX Improvements**: Enhance the visual design and user experience
+- 🎮 **Game Features**: Add new game modes, power-ups, or mechanics
+- 🔧 **Performance**: Optimize WebSocket handling or game rendering
+- 📱 **Mobile Support**: Improve touch controls and responsive design
+- 🧪 **Testing**: Add unit tests and integration tests
+- 📚 **Documentation**: Improve setup guides and API documentation
+
+### Reporting Issues
+Found a bug? Have a feature request? Please [open an issue](https://github.com/isaacjstriker/notris-online/issues) with:
+- Clear description of the problem or suggestion
+- Steps to reproduce (for bugs)
+- Expected vs actual behavior
+- Your environment details (OS, browser, etc.)
+
+---
+
+Built with ❤️ using Go, WebSockets, and HTML5 Canvas
