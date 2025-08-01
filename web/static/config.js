@@ -20,14 +20,14 @@ export const GAME_CONFIG = {
 };
 
 export const PIECE_COLORS = [
-    '#000000', // 0: Empty (Black)
-    '#00FFFF', // 1: I piece (Cyan)
-    '#0000FF', // 2: J piece (Blue)
-    '#FFA500', // 3: L piece (Orange)
-    '#FFFF00', // 4: O piece (Yellow)
-    '#FF0000', // 5: Z piece (Red)
-    '#800080', // 6: S piece (Purple)
-    '#00FF00'  // 7: T piece (Green)
+    '#000000',
+    '#00FFFF',
+    '#0000FF',
+    '#FFA500',
+    '#FFFF00', 
+    '#FF0000',
+    '#800080',
+    '#00FF00'
 ];
 
 export const MESSAGE_TYPES = {

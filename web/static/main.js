@@ -55,7 +55,6 @@ document.addEventListener('DOMContentLoaded', () => {
         } else if (viewName === 'levelSelect') {
             targetView = views.levelSelect;
         } else if (viewName === 'multiplayer') {
-            // Check authentication before showing multiplayer view
             const currentUser = getCurrentUser();
             if (!currentUser || !currentUser.token) {
                 alert('Please log in to access multiplayer features.');
@@ -122,7 +121,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     document.getElementById('back-to-main-menu-btn').addEventListener('click', () => {
-        // Clean up the game before returning to menu
         if (typeof cleanupGame === 'function') {
             cleanupGame();
         }
@@ -139,7 +137,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     document.getElementById('leave-multiplayer-game-btn').addEventListener('click', () => {
-        // Send disconnect message before leaving
         if (window.multiplayerManager && typeof window.multiplayerManager.disconnectFromRoom === 'function') {
             window.multiplayerManager.disconnectFromRoom(true);
         }
@@ -152,7 +149,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     document.getElementById('back-to-multiplayer-menu-btn').addEventListener('click', () => {
-        // Send disconnect message before leaving
         if (window.multiplayerManager && typeof window.multiplayerManager.disconnectFromRoom === 'function') {
             window.multiplayerManager.disconnectFromRoom(true);
         }
@@ -176,7 +172,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     document.getElementById('multiplayer-btn').addEventListener('click', () => {
-        // Check if user is logged in before allowing access to multiplayer
         const currentUser = getCurrentUser();
         if (!currentUser || !currentUser.token) {
             alert('Please log in to access multiplayer features.');
@@ -201,22 +196,11 @@ document.addEventListener('DOMContentLoaded', () => {
         await loadLeaderboard();
     });
 
-    // Leaderboard filter tabs
     document.querySelectorAll('.tab-btn').forEach(btn => {
         btn.addEventListener('click', async () => {
-            // Update active tab
             document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
             currentLeaderboardOptions.period = btn.dataset.period;
-            await loadLeaderboard();
-        });
-    });
-
-    document.querySelectorAll('.category-btn').forEach(btn => {
-        btn.addEventListener('click', async () => {
-            document.querySelectorAll('.category-btn').forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
-            currentLeaderboardOptions.category = btn.dataset.category;
             await loadLeaderboard();
         });
     });
@@ -226,11 +210,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     window.addEventListener('beforeunload', (event) => {
         if (window.isMultiplayer && window.multiplayerWs && window.multiplayerWs.readyState === WebSocket.OPEN) {
-            // Use the multiplayer manager's disconnect method if available
             if (window.multiplayerManager && typeof window.multiplayerManager.disconnectFromRoom === 'function') {
                 window.multiplayerManager.disconnectFromRoom(true);
             } else {
-                // Fallback to direct WebSocket message
                 const currentUser = getCurrentUser();
                 const roomId = window.multiplayerManager?.currentRoom?.id || '';
 
@@ -241,7 +223,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     data: { reason: 'page_unload' }
                 }));
 
-                // Also try to close the connection gracefully
                 try {
                     window.multiplayerWs.close(1000, 'Page unload');
                 } catch (e) {
@@ -255,11 +236,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Also handle page visibility changes and window blur/focus for additional disconnect detection
     document.addEventListener('visibilitychange', () => {
         if (document.hidden && window.isMultiplayer && window.multiplayerWs && window.multiplayerWs.readyState === WebSocket.OPEN) {
-            // Page is hidden - could indicate tab switching or browser minimizing
-            // Don't disconnect immediately, but send a heartbeat to detect if connection is lost
             setTimeout(() => {
                 if (document.hidden && window.multiplayerWs && window.multiplayerWs.readyState === WebSocket.OPEN) {
                     try {
@@ -276,7 +254,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         console.log('Heartbeat failed:', e);
                     }
                 }
-            }, 5000); // 5 second delay before heartbeat
+            }, 5000);
         }
     });
 });

@@ -1,5 +1,3 @@
-// This file will handle authentication logic on the frontend.
-
 const TOKEN_KEY = 'devware_jwt';
 const USERNAME_KEY = 'devware_username';
 const USER_ID_KEY = 'devware_user_id';
@@ -40,7 +38,7 @@ async function handleLogin(event) {
     try {
         const data = await loginUser(username, password);
         saveAuthInfo(data.token, data.username, data.user_id);
-        location.reload(); // Reload to update UI everywhere
+        location.reload();
     } catch (error) {
         errorEl.textContent = error.message;
     }
@@ -60,7 +58,6 @@ async function handleRegister(event) {
         confirmPassword: formData.get('confirmPassword')
     };
 
-    // Basic validation
     if (!userData.username || userData.username.length < 3) {
         errorEl.textContent = 'Username must be at least 3 characters long';
         return;
@@ -97,7 +94,6 @@ async function handleRegister(event) {
         const result = await response.json();
 
         if (response.ok) {
-            // Registration successful, now log in the user
             console.log('Registration successful, attempting login...');
 
             const loginResponse = await fetch('/api/login', {
@@ -114,16 +110,13 @@ async function handleRegister(event) {
             const loginResult = await loginResponse.json();
 
             if (loginResponse.ok) {
-                // Login successful after registration
                 saveAuthInfo(loginResult.token, loginResult.username, loginResult.user_id);
                 updateAuthUI();
                 showView('mainMenu');
             } else {
-                // Registration worked but login failed
                 errorEl.textContent = 'Registration successful, but login failed. Please try logging in manually.';
             }
         } else {
-            // Registration failed
             errorEl.textContent = result.error || 'Registration failed';
         }
     } catch (error) {
@@ -158,17 +151,14 @@ function getCurrentUser() {
     const username = getUsername();
     let userID = getUserID();
 
-    // If user_id is missing but we have token and username, user might have logged in before the user_id fix
     if (token && username && !userID) {
         console.log('User logged in but no user_id stored. This user may need to log in again.');
-        // For now, return a user object with id: null to indicate the issue
         return { token, username, id: null };
     }
 
     return token && username && userID ? { token, username, id: userID } : null;
 }
 
-// Make getCurrentUser globally accessible
 window.getCurrentUser = getCurrentUser;
 
 function logout() {

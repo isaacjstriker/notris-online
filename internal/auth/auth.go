@@ -30,7 +30,7 @@ func ReadPassword(prompt string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	fmt.Println() // Print a newline after password input
+	fmt.Println()
 	return string(bytePassword), nil
 }
 
@@ -79,7 +79,6 @@ func ValidateEmail(email string) error {
 	return nil
 }
 
-// ValidatePassword validates a password
 func ValidatePassword(password string) error {
 	if len(password) < 8 {
 		return fmt.Errorf("password must be at least 8 characters long")

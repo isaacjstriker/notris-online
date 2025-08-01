@@ -9,13 +9,11 @@ import (
 	"github.com/isaacjstriker/devware/internal/auth"
 )
 
-// LoginRequest defines the shape of the login request
 type LoginRequest struct {
 	Username string `json:"username"`
 	Password string `json:"password"`
 }
 
-// LoginResponse defines the shape of the successful login response
 type LoginResponse struct {
 	Token    string `json:"token"`
 	Username string `json:"username"`
@@ -69,7 +67,6 @@ func createJWT(userID int, username, secret string) (string, error) {
 	return token.SignedString([]byte(secret))
 }
 
-// UserInfo represents validated user information from JWT
 type UserInfo struct {
 	UserID   int    `json:"user_id"`
 	Username string `json:"username"`
@@ -96,7 +93,7 @@ func (s *APIServer) validateJWT(tokenString string) (*UserInfo, error) {
 		return nil, jwt.ErrInvalidKey
 	}
 
-	userID, ok := claims["userID"].(float64) // JSON numbers are float64
+	userID, ok := claims["userID"].(float64)
 	if !ok {
 		return nil, jwt.ErrInvalidKey
 	}
@@ -112,10 +109,7 @@ func (s *APIServer) validateJWT(tokenString string) (*UserInfo, error) {
 	}, nil
 }
 
-// handleLogout handles user logout
 func (s *APIServer) handleLogout(w http.ResponseWriter, r *http.Request) {
-	// For JWT, logout is handled client-side by deleting the token
-	// We could maintain a blacklist in the future if needed
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"success": true,
 		"message": "Logged out successfully",

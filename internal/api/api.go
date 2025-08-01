@@ -12,7 +12,6 @@ import (
 	"github.com/isaacjstriker/devware/web"
 )
 
-// APIServer represents the main server for the application
 type APIServer struct {
 	listenAddr string
 	db         *database.DB
@@ -20,7 +19,6 @@ type APIServer struct {
 	wsHub      *multiplayer.Hub
 }
 
-// NewAPIServer creates a new APIServer instance
 func NewAPIServer(cfg *config.Config, db *database.DB) *APIServer {
 	server := &APIServer{
 		config:     cfg,
@@ -72,7 +70,6 @@ func (s *APIServer) Start() {
 	router.HandleFunc("GET /ws/room/{roomId}", s.handleWebSocket)
 	router.HandleFunc("GET /ws/game", s.handleGameConnection)
 
-	// Start the WebSocket hub
 	go s.wsHub.Run()
 
 	log.Printf("API server listening on %s", s.listenAddr)
@@ -87,7 +84,6 @@ func (s *APIServer) handleIndex(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	// Read the file from the embedded FS
 	indexHTML, err := web.Files.ReadFile("templates/index.html")
 	if err != nil {
 		http.Error(w, "could not read index file", http.StatusInternalServerError)

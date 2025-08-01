@@ -10,14 +10,12 @@ import (
 	"github.com/isaacjstriker/devware/internal/database"
 )
 
-// generateRoomID generates a random room ID
 func generateRoomID() string {
 	bytes := make([]byte, 8)
 	rand.Read(bytes)
 	return hex.EncodeToString(bytes)
 }
 
-// Request structs for multiplayer endpoints
 type CreateRoomRequest struct {
 	Name       string                 `json:"name"`
 	GameType   string                 `json:"game_type"`
@@ -26,15 +24,9 @@ type CreateRoomRequest struct {
 	Settings   map[string]interface{} `json:"settings,omitempty"`
 }
 
-type JoinRoomRequest struct {
-	// Empty for now, room ID comes from URL path
-}
-
-// handleCreateRoom creates a new multiplayer room
 func (s *APIServer) handleCreateRoom(w http.ResponseWriter, r *http.Request) {
 	log.Printf("Creating room: received request")
 
-	// Get user from context (injected by requireAuth middleware)
 	user, ok := GetUserFromContext(r.Context())
 	if !ok {
 		log.Printf("Creating room: user not found in context")
@@ -51,7 +43,6 @@ func (s *APIServer) handleCreateRoom(w http.ResponseWriter, r *http.Request) {
 	}
 	log.Printf("Creating room: parsed request - Name: %s, GameType: %s, MaxPlayers: %d", req.Name, req.GameType, req.MaxPlayers)
 
-	// Create room object
 	room := &database.MultiplayerRoom{
 		ID:         generateRoomID(),
 		Name:       req.Name,
@@ -73,29 +64,22 @@ func (s *APIServer) handleCreateRoom(w http.ResponseWriter, r *http.Request) {
 	}
 	log.Printf("Creating room: successfully created room %s", room.ID)
 
-	// Automatically add the creator as a player in the room
 	if err := s.db.JoinMultiplayerRoom(room.ID, user.UserID); err != nil {
 		log.Printf("Creating room: failed to add creator as player - %v", err)
-		// Don't fail the room creation if we can't add the creator as a player
-		// The user can manually join later
 	} else {
 		log.Printf("Creating room: successfully added creator as player")
 	}
 
-	// Get the updated room with player information
 	updatedRoom, err := s.db.GetMultiplayerRoom(room.ID)
 	if err != nil {
 		log.Printf("Creating room: failed to get updated room - %v", err)
-		// Return the original room if we can't get the updated one
 		writeJSON(w, http.StatusCreated, room)
 	} else {
 		writeJSON(w, http.StatusCreated, updatedRoom)
 	}
 }
 
-// handleJoinRoom joins a multiplayer room
 func (s *APIServer) handleJoinRoom(w http.ResponseWriter, r *http.Request) {
-	// Get user from context (injected by requireAuth middleware)
 	user, ok := GetUserFromContext(r.Context())
 	if !ok {
 		writeJSON(w, http.StatusUnauthorized, apiError{Error: "user not found in context"})
@@ -113,7 +97,6 @@ func (s *APIServer) handleJoinRoom(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get updated room info
 	room, err := s.db.GetMultiplayerRoom(roomID)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, apiError{Error: "failed to get room"})
@@ -123,9 +106,7 @@ func (s *APIServer) handleJoinRoom(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, room)
 }
 
-// handleLeaveRoom leaves a multiplayer room
 func (s *APIServer) handleLeaveRoom(w http.ResponseWriter, r *http.Request) {
-	// Get user from context (injected by requireAuth middleware)
 	user, ok := GetUserFromContext(r.Context())
 	if !ok {
 		writeJSON(w, http.StatusUnauthorized, apiError{Error: "user not found in context"})
@@ -138,32 +119,26 @@ func (s *APIServer) handleLeaveRoom(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get room info before leaving to check status
 	room, err := s.db.GetMultiplayerRoom(roomID)
 	if err != nil {
 		writeJSON(w, http.StatusNotFound, apiError{Error: "room not found"})
 		return
 	}
 
-	// Leave the room in database
 	if err := s.db.LeaveMultiplayerRoom(roomID, user.UserID); err != nil {
 		writeJSON(w, http.StatusInternalServerError, apiError{Error: "failed to leave room"})
 		return
 	}
 
-	// If the room was actively playing, notify other players and end the match
 	if room.Status == "playing" || room.Status == "active" {
 		log.Printf("Player %s left active room %s, ending match", user.Username, roomID)
 
-		// Notify other players that the match has ended due to a player leaving
 		if s.wsHub != nil {
 			s.wsHub.NotifyPlayerLeft(roomID, user.UserID, user.Username)
 		}
 
-		// Update room status to finished
 		s.db.UpdateRoomStatus(roomID, "finished")
 	} else {
-		// If it was just a waiting room, notify other players of the leave
 		log.Printf("Player %s left waiting room %s", user.Username, roomID)
 
 		if s.wsHub != nil {
@@ -174,7 +149,6 @@ func (s *APIServer) handleLeaveRoom(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"message": "left room successfully"})
 }
 
-// handleGetRoom gets room details
 func (s *APIServer) handleGetRoom(w http.ResponseWriter, r *http.Request) {
 	roomID := r.PathValue("roomId")
 
@@ -192,7 +166,6 @@ func (s *APIServer) handleGetRoom(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, room)
 }
 
-// handleGetAvailableRooms gets available rooms for a game type
 func (s *APIServer) handleGetAvailableRooms(w http.ResponseWriter, r *http.Request) {
 	gameType := r.PathValue("gameType")
 
@@ -210,11 +183,9 @@ func (s *APIServer) handleGetAvailableRooms(w http.ResponseWriter, r *http.Reque
 	writeJSON(w, http.StatusOK, rooms)
 }
 
-// handlePlayerReady sets player ready status
 func (s *APIServer) handlePlayerReady(w http.ResponseWriter, r *http.Request) {
 	log.Printf("Player ready: received request")
 
-	// Get user from context (injected by requireAuth middleware)
 	user, ok := GetUserFromContext(r.Context())
 	if !ok {
 		log.Printf("Player ready: user not found in context")
@@ -231,7 +202,6 @@ func (s *APIServer) handlePlayerReady(w http.ResponseWriter, r *http.Request) {
 
 	log.Printf("Player ready: user %s (%d) trying to ready in room %s", user.Username, user.UserID, roomId)
 
-	// Get current room to check player status
 	room, err := s.db.GetMultiplayerRoom(roomId)
 	if err != nil {
 		log.Printf("Player ready: room not found: %v", err)
@@ -244,7 +214,6 @@ func (s *APIServer) handlePlayerReady(w http.ResponseWriter, r *http.Request) {
 		log.Printf("Player ready: room has player %d (ready: %v)", player.UserID, player.IsReady)
 	}
 
-	// Find current player and toggle ready status
 	var currentReady bool
 	found := false
 	for _, player := range room.Players {
@@ -261,7 +230,6 @@ func (s *APIServer) handlePlayerReady(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Toggle ready status
 	newReady := !currentReady
 	log.Printf("Player ready: toggling ready status from %v to %v", currentReady, newReady)
 	err = s.db.UpdatePlayerReady(roomId, user.UserID, newReady)
@@ -278,7 +246,6 @@ func (s *APIServer) handlePlayerReady(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// handleWebSocket handles WebSocket connections for multiplayer
 func (s *APIServer) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	s.wsHub.ServeWS(w, r)
 }

@@ -37,7 +37,6 @@ const logger = {
 
 let currentLeaderboardOptions = {
     period: 'all',
-    category: 'score',
     limit: 15,
     includeAchievements: true
 };
@@ -72,116 +71,30 @@ function renderLeaderboard(entries) {
     const table = document.createElement('table');
     table.className = 'leaderboard-table';
 
-    let tableHTML = '';
-
-    switch (currentLeaderboardOptions.category) {
-        case 'speed':
-            tableHTML = `
-                <thead>
-                    <tr>
-                        <th>Rank</th>
-                        <th>Player</th>
-                        <th>Best Time</th>
-                        <th>Best Score</th>
-                        <th>Games</th>
-                        <th>Achievements</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    ${entries.map((entry, index) => `
-                        <tr ${isCurrentUser(entry.username) ? 'class="current-user"' : ''}>
-                            <td class="rank-cell">${getRankIcon(index + 1)}${index + 1}</td>
-                            <td class="player-cell">${escapeHTML(entry.username)}</td>
-                            <td class="stat-cell">${formatTime(entry.best_time)}</td>
-                            <td class="score-cell">${formatScore(entry.best_score)}</td>
-                            <td class="games-cell">${entry.games_played}</td>
-                            <td class="achievements-cell">${formatAchievements(entry.achievements)}</td>
-                        </tr>
-                    `).join('')}
-                </tbody>
-            `;
-            break;
-
-        case 'efficiency':
-            tableHTML = `
-                <thead>
-                    <tr>
-                        <th>Rank</th>
-                        <th>Player</th>
-                        <th>Avg PPM</th>
-                        <th>Lines Cleared</th>
-                        <th>Games</th>
-                        <th>Achievements</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    ${entries.map((entry, index) => `
-                        <tr ${isCurrentUser(entry.username) ? 'class="current-user"' : ''}>
-                            <td class="rank-cell">${getRankIcon(index + 1)}${index + 1}</td>
-                            <td class="player-cell">${escapeHTML(entry.username)}</td>
-                            <td class="stat-cell">${entry.avg_ppm ? entry.avg_ppm.toFixed(1) : 'N/A'}</td>
-                            <td class="lines-cell">${entry.total_lines || 0}</td>
-                            <td class="games-cell">${entry.games_played}</td>
-                            <td class="achievements-cell">${formatAchievements(entry.achievements)}</td>
-                        </tr>
-                    `).join('')}
-                </tbody>
-            `;
-            break;
-
-        case 'endurance':
-            tableHTML = `
-                <thead>
-                    <tr>
-                        <th>Rank</th>
-                        <th>Player</th>
-                        <th>Longest Game</th>
-                        <th>Total Time</th>
-                        <th>Games</th>
-                        <th>Achievements</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    ${entries.map((entry, index) => `
-                        <tr ${isCurrentUser(entry.username) ? 'class="current-user"' : ''}>
-                            <td class="rank-cell">${getRankIcon(index + 1)}${index + 1}</td>
-                            <td class="player-cell">${escapeHTML(entry.username)}</td>
-                            <td class="stat-cell">${formatTime(entry.best_time)}</td>
-                            <td class="time-cell">${formatTime(entry.total_time)}</td>
-                            <td class="games-cell">${entry.games_played}</td>
-                            <td class="achievements-cell">${formatAchievements(entry.achievements)}</td>
-                        </tr>
-                    `).join('')}
-                </tbody>
-            `;
-            break;
-
-        default: // score
-            tableHTML = `
-                <thead>
-                    <tr>
-                        <th>Rank</th>
-                        <th>Player</th>
-                        <th>Best Score</th>
-                        <th>Avg Score</th>
-                        <th>Games</th>
-                        <th>Achievements</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    ${entries.map((entry, index) => `
-                        <tr ${isCurrentUser(entry.username) ? 'class="current-user"' : ''}>
-                            <td class="rank-cell">${getRankIcon(index + 1)}${index + 1}</td>
-                            <td class="player-cell">${escapeHTML(entry.username)}</td>
-                            <td class="score-cell">${formatScore(entry.best_score)}</td>
-                            <td class="avg-cell">${entry.avg_score.toFixed(0)}</td>
-                            <td class="games-cell">${entry.games_played}</td>
-                            <td class="achievements-cell">${formatAchievements(entry.achievements)}</td>
-                        </tr>
-                    `).join('')}
-                </tbody>
-            `;
-    }
+    const tableHTML = `
+        <thead>
+            <tr>
+                <th>Rank</th>
+                <th>Player</th>
+                <th>Best Score</th>
+                <th>Avg Score</th>
+                <th>Games</th>
+                <th>Achievements</th>
+            </tr>
+        </thead>
+        <tbody>
+            ${entries.map((entry, index) => `
+                <tr ${isCurrentUser(entry.username) ? 'class="current-user"' : ''}>
+                    <td class="rank-cell">${getRankIcon(index + 1)}${index + 1}</td>
+                    <td class="player-cell">${escapeHTML(entry.username)}</td>
+                    <td class="score-cell">${formatScore(entry.best_score)}</td>
+                    <td class="avg-cell">${entry.avg_score.toFixed(0)}</td>
+                    <td class="games-cell">${entry.games_played}</td>
+                    <td class="achievements-cell">${formatAchievements(entry.achievements)}</td>
+                </tr>
+            `).join('')}
+        </tbody>
+    `;
 
     table.innerHTML = tableHTML;
     contentDiv.innerHTML = '';
@@ -208,7 +121,6 @@ function renderRecentGames(games) {
     recentDiv.innerHTML = gamesList;
 }
 
-// Helper functions for formatting
 function getRankIcon(rank) {
     switch (rank) {
         case 1: return '🥇 ';
@@ -332,6 +244,9 @@ function startGame(gameType, startLevel = GAME_CONFIG.DEFAULT_STARTING_LEVEL) {
         logger.info(`Connected to ${gameType} game server`);
         document.addEventListener('keydown', handleKeyPress);
 
+        // Immediately update the level display to match the starting level
+        document.getElementById('level').textContent = startLevel;
+
         if (startLevel > GAME_CONFIG.DEFAULT_STARTING_LEVEL) {
             ws.send(JSON.stringify({ type: 'setLevel', level: startLevel }));
         }
@@ -351,7 +266,6 @@ function startGame(gameType, startLevel = GAME_CONFIG.DEFAULT_STARTING_LEVEL) {
                 ws.close();
             }
 
-            // Broadcast game state to multiplayer opponents if in multiplayer mode
             if (window.isMultiplayer && window.multiplayerWs && window.multiplayerWs.readyState === WebSocket.OPEN) {
                 broadcastGameStateToOpponents(gameState);
             }
@@ -360,7 +274,6 @@ function startGame(gameType, startLevel = GAME_CONFIG.DEFAULT_STARTING_LEVEL) {
 
     ws.onclose = () => {
         logger.info('Disconnected from game server');
-        // Cleanup is handled by cleanupGame() function
     };
 
     ws.onerror = (error) => {
@@ -368,14 +281,12 @@ function startGame(gameType, startLevel = GAME_CONFIG.DEFAULT_STARTING_LEVEL) {
     };
 }
 
-// Broadcast game state to multiplayer opponents
 function broadcastGameStateToOpponents(gameState) {
     if (!window.multiplayerWs || window.multiplayerWs.readyState !== WebSocket.OPEN) {
         return;
     }
 
     try {
-        // Create a message to broadcast to opponents
         const message = {
             type: 'game_state',
             room_id: window.currentRoomId || '',
@@ -387,8 +298,6 @@ function broadcastGameStateToOpponents(gameState) {
                 lines: gameState.lines,
                 gameOver: gameState.gameOver,
                 paused: gameState.paused,
-                // Don't send current piece to avoid confusion
-                // Opponents only see the placed pieces on the board
                 timestamp: Date.now()
             }
         };
@@ -417,24 +326,21 @@ function handleKeyPress(event) {
         case 'ArrowUp':
             action = 'hardDrop';
             break;
-        case ' ': // Spacebar for rotation
+        case ' ':
         case 'x':
         case 'X':
             action = 'rotate';
             break;
         case 'c':
         case 'C':
-        case 'Shift': // Common hold keys in Tetris games
+        case 'Shift':
             action = 'hold';
             break;
         case 'Escape':
-            // Toggle game menu
             const gameMenuOverlay = document.getElementById('game-menu-overlay');
             if (gameMenuOverlay.classList.contains('hidden')) {
-                // Open game menu and pause
                 gameMenuOverlay.classList.remove('hidden');
 
-                // Hide restart button if in multiplayer mode
                 const restartBtn = document.getElementById('restart-game-btn');
                 if (restartBtn) {
                     if (window.isMultiplayer) {
@@ -448,7 +354,6 @@ function handleKeyPress(event) {
                     ws.send(JSON.stringify({ type: 'input', key: 'pause' }));
                 }
             } else {
-                // Close game menu and resume
                 gameMenuOverlay.classList.add('hidden');
                 if (ws && ws.readyState === WebSocket.OPEN) {
                     ws.send(JSON.stringify({ type: 'input', key: 'pause' }));
@@ -460,10 +365,9 @@ function handleKeyPress(event) {
             return;
     }
     ws.send(JSON.stringify({ type: 'input', key: action }));
-    event.preventDefault(); // Prevent arrow keys from scrolling the page
+    event.preventDefault();
 }
 
-// Separate key handler for multiplayer games that uses the room WebSocket
 function handleMultiplayerKeyPress(event) {
     if (!window.multiplayerWs || window.multiplayerWs.readyState !== WebSocket.OPEN) return;
 
@@ -481,22 +385,20 @@ function handleMultiplayerKeyPress(event) {
         case 'ArrowUp':
             action = 'hardDrop';
             break;
-        case ' ': // Spacebar for rotation
+        case ' ':
         case 'x':
         case 'X':
             action = 'rotate';
             break;
         case 'c':
         case 'C':
-        case 'Shift': // Common hold keys in Tetris games
+        case 'Shift':
             action = 'hold';
             break;
         case 'Escape':
-            // Toggle multiplayer game menu
             const multiplayerGameMenuOverlay = document.getElementById('multiplayer-game-menu-overlay');
             if (multiplayerGameMenuOverlay && multiplayerGameMenuOverlay.classList.contains('hidden')) {
                 multiplayerGameMenuOverlay.classList.remove('hidden');
-                // Send pause message
                 window.multiplayerWs.send(JSON.stringify({
                     type: 'game_input',
                     room_id: window.currentRoomId,
@@ -506,7 +408,6 @@ function handleMultiplayerKeyPress(event) {
                 }));
             } else if (multiplayerGameMenuOverlay) {
                 multiplayerGameMenuOverlay.classList.add('hidden');
-                // Send resume message
                 window.multiplayerWs.send(JSON.stringify({
                     type: 'game_input',
                     room_id: window.currentRoomId,
@@ -521,7 +422,6 @@ function handleMultiplayerKeyPress(event) {
             return;
     }
 
-    // Send game input via room WebSocket
     window.multiplayerWs.send(JSON.stringify({
         type: 'game_input',
         room_id: window.currentRoomId,
@@ -533,11 +433,9 @@ function handleMultiplayerKeyPress(event) {
 }
 
 function renderGame(state) {
-    // Clear canvas
     ctx.fillStyle = '#000';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // Draw the game board
     if (state.board) {
         for (let row = 0; row < state.board.length; row++) {
             for (let col = 0; col < state.board[row].length; col++) {
@@ -550,16 +448,15 @@ function renderGame(state) {
         }
     }
 
-    // Draw the ghost piece (outline of where current piece will land)
     if (state.ghostPiece && state.ghostPiece.shape && !state.paused) {
-        ctx.strokeStyle = '#666666'; // Gray outline
+        ctx.strokeStyle = '#666666';
         ctx.lineWidth = 2;
         for (let row = 0; row < state.ghostPiece.shape.length; row++) {
             for (let col = 0; col < state.ghostPiece.shape[row].length; col++) {
                 if (state.ghostPiece.shape[row][col] === 1) {
-                    const x = (state.ghostPiece.x + col) * TILE_SIZE;
-                    const y = (state.ghostPiece.y + row) * TILE_SIZE;
-                    ctx.strokeRect(x, y, TILE_SIZE - 1, TILE_SIZE - 1);
+                    const x = (state.ghostPiece.x + col) * GAME_CONFIG.TILE_SIZE;
+                    const y = (state.ghostPiece.y + row) * GAME_CONFIG.TILE_SIZE;
+                    ctx.strokeRect(x, y, GAME_CONFIG.TILE_SIZE - 1, GAME_CONFIG.TILE_SIZE - 1);
                 }
             }
         }
@@ -571,7 +468,6 @@ function updateGameInfo(state) {
     document.getElementById('lines').textContent = state.lines;
     document.getElementById('level').textContent = state.level;
 
-    // Update statistics if available
     if (state.stats) {
         const minutes = Math.floor(state.stats.timePlayed / 60);
         const seconds = state.stats.timePlayed % 60;
@@ -585,18 +481,12 @@ function updateGameInfo(state) {
         document.getElementById('stat-tetris').textContent = state.stats.lineStats[3];
     }
 
-    // Render next piece
     renderNextPiece(state.nextPiece);
 
-    // Render hold piece
-    renderHoldPiece(state.holdPiece);
-
-    // Render hold piece
     renderHoldPiece(state.holdPiece);
 }
 
 function showGameOverScreen(finalScore, stats = null) {
-    // Submit score to leaderboard if user is logged in
     const token = getAuthToken();
     if (token) {
         const metadata = stats ? {
@@ -615,7 +505,6 @@ function showGameOverScreen(finalScore, stats = null) {
             });
     }
 
-    // Create game over overlay
     const overlay = document.createElement('div');
     overlay.style.cssText = `
         position: fixed;
@@ -647,7 +536,6 @@ function showGameOverScreen(finalScore, stats = null) {
         <p>Final Score: <strong>${finalScore}</strong></p>
     `;
 
-    // Add authentication status message
     if (token) {
         content += `<p style="color: #00ff00; font-size: 0.9em;">✓ Score submitted to leaderboard!</p>`;
     } else {
@@ -686,10 +574,8 @@ function showGameOverScreen(finalScore, stats = null) {
     overlay.appendChild(gameOverContent);
     document.body.appendChild(overlay);
 
-    // Add event listeners
     document.getElementById('restart-game-btn').addEventListener('click', () => {
         document.body.removeChild(overlay);
-        // Start a new game with same level
         const lastLevel = localStorage.getItem('lastSelectedLevel') || 1;
         startGame('tetris', parseInt(lastLevel));
     });
@@ -699,23 +585,20 @@ function showGameOverScreen(finalScore, stats = null) {
         if (typeof cleanupGame === 'function') {
             cleanupGame();
         }
-        // This function should be available from main.js
         if (typeof showView === 'function') {
             showView('mainMenu');
         } else {
-            // Fallback - reload the page
             window.location.reload();
         }
     });
 }
 
 function renderNextPiece(nextPiece) {
-    // Clear the next piece canvas
     nextPieceCtx.fillStyle = '#000';
     nextPieceCtx.fillRect(0, 0, nextPieceCanvas.width, nextPieceCanvas.height);
 
     if (nextPiece) {
-        const pieceSize = GAME_CONFIG.SMALL_TILE_SIZE; // Smaller tiles for next piece display
+        const pieceSize = GAME_CONFIG.SMALL_TILE_SIZE;
         const offsetX = (nextPieceCanvas.width - nextPiece[0].length * pieceSize) / 2;
         const offsetY = (nextPieceCanvas.height - nextPiece.length * pieceSize) / 2;
 
@@ -736,19 +619,18 @@ function renderNextPiece(nextPiece) {
 }
 
 function renderHoldPiece(holdPiece) {
-    // Clear the hold piece canvas
     holdPieceCtx.fillStyle = '#000';
     holdPieceCtx.fillRect(0, 0, holdPieceCanvas.width, holdPieceCanvas.height);
 
     if (holdPiece) {
-        const pieceSize = GAME_CONFIG.SMALL_TILE_SIZE; // Smaller tiles for hold piece display
+        const pieceSize = GAME_CONFIG.SMALL_TILE_SIZE;
         const offsetX = (holdPieceCanvas.width - holdPiece[0].length * pieceSize) / 2;
         const offsetY = (holdPieceCanvas.height - holdPiece.length * pieceSize) / 2;
 
         for (let row = 0; row < holdPiece.length; row++) {
             for (let col = 0; col < holdPiece[row].length; col++) {
                 if (holdPiece[row][col] === 1) {
-                    holdPieceCtx.fillStyle = '#aaa'; // Slightly dimmed to show it's held
+                    holdPieceCtx.fillStyle = '#aaa';
                     holdPieceCtx.fillRect(
                         offsetX + col * pieceSize,
                         offsetY + row * pieceSize,
@@ -761,8 +643,6 @@ function renderHoldPiece(holdPiece) {
     }
 }
 
-// Multiplayer game functionality
-// Multiplayer canvas setup with error handling
 function setupMultiplayerCanvasesWithRetry(maxAttempts = GAME_CONFIG.CANVAS_SETUP_MAX_ATTEMPTS) {
     let attempts = 0;
 
@@ -772,7 +652,6 @@ function setupMultiplayerCanvasesWithRetry(maxAttempts = GAME_CONFIG.CANVAS_SETU
 
             setupMultiplayerCanvases();
 
-            // Verify setup worked
             if (!window.player1Canvas || !window.player2Canvas) {
                 if (attempts < maxAttempts - 1) {
                     attempts++;
@@ -793,22 +672,17 @@ function setupMultiplayerCanvasesWithRetry(maxAttempts = GAME_CONFIG.CANVAS_SETU
     attemptSetup();
 }
 
-// Initialize multiplayer game state
 function initializeMultiplayerState(roomId, multiplayerWs) {
     try {
-        // Clean up any existing game first
         cleanupGame();
 
-        // Store multiplayer WebSocket reference
         window.multiplayerWs = multiplayerWs;
         window.isMultiplayer = true;
         window.currentRoomId = roomId;
 
-        // Initialize game state to null until first update
         window.gameState = null;
         window.opponentGameState = null;
 
-        // Initialize multiplayer timer
         window.multiplayerGameStartTime = Date.now();
         window.multiplayerTimerInterval = setInterval(updateMultiplayerTimer, 1000);
 
@@ -819,7 +693,6 @@ function initializeMultiplayerState(roomId, multiplayerWs) {
     }
 }
 
-// Update multiplayer timer display
 function updateMultiplayerTimer() {
     if (!window.multiplayerGameStartTime) return;
 
@@ -834,7 +707,6 @@ function updateMultiplayerTimer() {
     }
 }
 
-// Send game start message with error handling
 function sendMultiplayerGameStart(roomId) {
     try {
         if (window.multiplayerWs && window.multiplayerWs.readyState === WebSocket.OPEN) {
@@ -860,18 +732,14 @@ function startMultiplayerGame(roomId, multiplayerWs, startingLevel = GAME_CONFIG
     logger.info('Starting multiplayer game for room', { roomId });
 
     try {
-        // Initialize multiplayer state
         if (!initializeMultiplayerState(roomId, multiplayerWs)) {
             throw new Error('Failed to initialize multiplayer state');
         }
 
-        // Set up multiplayer game canvases with retries
         setupMultiplayerCanvasesWithRetry();
 
-        // Set up keyboard controls
         document.addEventListener('keydown', handleMultiplayerKeyPress);
 
-        // Send initialization message to start multiplayer game
         if (!sendMultiplayerGameStart(roomId)) {
             throw new Error('Failed to send game start message');
         }
@@ -879,7 +747,6 @@ function startMultiplayerGame(roomId, multiplayerWs, startingLevel = GAME_CONFIG
         logger.info('Multiplayer game setup complete - using room WebSocket for all communication');
     } catch (error) {
         logger.error('Failed to start multiplayer game', error);
-        // Clean up on failure
         cleanupGame();
         throw error;
     }
@@ -893,7 +760,6 @@ function setupMultiplayerCanvases() {
         displayStyle: document.getElementById('multiplayer-game-view')?.style.display
     });
 
-    // Set up canvas contexts for multiplayer game
     window.player1Canvas = document.getElementById('player1-canvas');
     if (!window.player1Canvas) {
         console.error('Player 1 canvas not found!');
@@ -929,15 +795,13 @@ function setupMultiplayerCanvases() {
     console.log('Player 1 canvas size:', window.player1Canvas.width, 'x', window.player1Canvas.height);
     console.log('Player 2 canvas size:', window.player2Canvas.width, 'x', window.player2Canvas.height);
 
-    // Test rendering to verify canvases work
     console.log('Testing canvas rendering...');
+    // Test that both canvases are displaying correctly by briefly rendering a dummy piece
     try {
-        // Test player 1 canvas
         window.player1Ctx.fillStyle = '#ff0000';
         window.player1Ctx.fillRect(0, 0, 50, 50);
         console.log('Player 1 canvas test render successful');
 
-        // Test player 2 canvas  
         window.player2Ctx.fillStyle = '#00ff00';
         window.player2Ctx.fillRect(0, 0, 50, 50);
         console.log('Player 2 canvas test render successful');
@@ -984,16 +848,13 @@ function renderMultiplayerGame(gameState, player) {
     logger.debug(`Rendering to ${player} canvas`, { width: canvas.width, height: canvas.height });
 
     try {
-        // Calculate tile size for this canvas
         const tileSize = canvas.width / GAME_CONFIG.BOARD_WIDTH;
         logger.debug(`Tile size for ${player}`, { tileSize });
 
-        // Clear canvas
         ctx.fillStyle = '#000';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         logger.debug(`Cleared ${player} canvas`);
 
-        // Draw the game board
         if (gameState.board && Array.isArray(gameState.board)) {
             console.log(`Drawing board for ${player}, board size: ${gameState.board.length}x${gameState.board[0]?.length}`);
             let tilesDrawn = 0;
@@ -1017,7 +878,7 @@ function renderMultiplayerGame(gameState, player) {
 
         // Draw the ghost piece (only for player1 - the local player)
         if (player === 'player1' && gameState.ghostPiece && gameState.ghostPiece.shape && !gameState.paused) {
-            ctx.strokeStyle = '#666666'; // Gray outline
+            ctx.strokeStyle = '#666666';
             ctx.lineWidth = 2;
             for (let row = 0; row < gameState.ghostPiece.shape.length; row++) {
                 for (let col = 0; col < gameState.ghostPiece.shape[row].length; col++) {
@@ -1049,13 +910,12 @@ function renderMultiplayerGame(gameState, player) {
 }
 
 function renderPieceToCanvas(piece, ctx, canvas) {
-    // Clear canvas
     ctx.fillStyle = '#000';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     if (!piece || piece.length === 0) return;
 
-    const pieceSize = Math.min(canvas.width, canvas.height) / 4; // Adjust size
+    const pieceSize = Math.min(canvas.width, canvas.height) / 4;
     const offsetX = (canvas.width - piece[0].length * pieceSize) / 2;
     const offsetY = (canvas.height - piece.length * pieceSize) / 2;
 
@@ -1086,22 +946,19 @@ function cleanupMultiplayerGame() {
     window.isMultiplayer = false;
     window.multiplayerWs = null;
     window.currentRoomId = null;
-    window.opponentGameState = null; // Clear opponent game state
+    window.opponentGameState = null;
 
-    // Clear the game state broadcasting interval
     if (window.multiplayerGameStateInterval) {
         clearInterval(window.multiplayerGameStateInterval);
         window.multiplayerGameStateInterval = null;
     }
 
-    // Clear the multiplayer timer
     if (window.multiplayerTimerInterval) {
         clearInterval(window.multiplayerTimerInterval);
         window.multiplayerTimerInterval = null;
     }
     window.multiplayerGameStartTime = null;
 
-    // Clear multiplayer canvases
     if (window.player1Ctx) {
         window.player1Ctx.clearRect(0, 0, window.player1Canvas.width, window.player1Canvas.height);
     }
@@ -1117,12 +974,10 @@ function handleMultiplayerUpdate(gameState) {
     console.log('player2Canvas:', window.player2Canvas);
     console.log('player2Ctx:', window.player2Ctx);
 
-    // If canvas elements are missing, try to set them up again
     if (!window.player2Canvas || !window.player2Ctx) {
         console.log('Player2 canvas missing, attempting to re-setup...');
         setupMultiplayerCanvases();
 
-        // Check again after setup
         if (!window.player2Canvas || !window.player2Ctx) {
             console.error('Failed to setup player2 canvas after retry');
             console.error('Multiplayer game view exists:', !!document.getElementById('multiplayer-game-view'));
@@ -1132,19 +987,16 @@ function handleMultiplayerUpdate(gameState) {
         console.log('Successfully re-setup player2 canvas');
     }
 
-    // This function handles updates from other players
-    // Render the opponent's game state to player 2 canvas
     if (gameState && gameState.board) {
         console.log('Rendering opponent board with score:', gameState.score);
         console.log('Opponent board dimensions:', gameState.board.length, 'x', gameState.board[0]?.length);
 
-        // Create a complete game state for rendering
         const opponentGameState = {
             board: gameState.board,
             score: gameState.score || 0,
             level: gameState.level || 1,
             lines: gameState.lines || 0,
-            currentPiece: null, // We don't show opponent's current piece for clarity
+            currentPiece: null,
             nextPiece: null,
             holdPiece: null,
             ghostPiece: null,
@@ -1152,7 +1004,6 @@ function handleMultiplayerUpdate(gameState) {
             paused: false
         };
 
-        // Store the opponent game state for continuous rendering
         window.opponentGameState = opponentGameState;
 
         try {
@@ -1161,7 +1012,6 @@ function handleMultiplayerUpdate(gameState) {
             updateMultiplayerGameInfo(opponentGameState, 'player2');
             console.log('Successfully rendered opponent game state');
 
-            // Add visual confirmation that rendering worked
             console.log('Verifying player2 canvas content...');
             const imageData = window.player2Ctx.getImageData(0, 0, window.player2Canvas.width, window.player2Canvas.height);
             const hasContent = Array.from(imageData.data).some(pixel => pixel !== 0);
@@ -1177,16 +1027,13 @@ function handleMultiplayerUpdate(gameState) {
     }
 }
 
-// Make cleanupMultiplayerGame globally accessible
 window.cleanupMultiplayerGame = cleanupMultiplayerGame;
 
-// Make handleMultiplayerUpdate globally accessible
 window.handleMultiplayerUpdate = handleMultiplayerUpdate;
 
 function handleMultiplayerGameOver(gameState) {
     console.log('Multiplayer game over:', gameState);
 
-    // Send final results to multiplayer system
     if (window.multiplayerWs && window.multiplayerWs.readyState === WebSocket.OPEN) {
         window.multiplayerWs.send(JSON.stringify({
             type: 'player_finished',
@@ -1199,18 +1046,15 @@ function handleMultiplayerGameOver(gameState) {
         }));
     }
 
-    // Show multiplayer game over screen
     showMultiplayerGameOverScreen(gameState);
 }
 
 function handleOpponentFinished(gameState) {
     console.log('Opponent finished:', gameState);
-    // Show notification that opponent finished
     showOpponentFinishedNotification(gameState.playerName, gameState.position);
 }
 
 function showMultiplayerGameOverScreen(gameState) {
-    // Create multiplayer game over overlay
     const overlay = document.createElement('div');
     overlay.className = 'game-over-overlay';
     overlay.style.cssText = `
@@ -1267,12 +1111,10 @@ function showOpponentFinishedNotification(playerName, position) {
 }
 
 function updateOpponentDisplays(opponents) {
-    // This would update opponent board displays if we had them in the UI
     console.log('Updating opponent displays:', opponents);
 }
 
 function returnToLobby() {
-    // Remove game over overlay
     const overlay = document.querySelector('.game-over-overlay');
     if (overlay) {
         overlay.remove();
@@ -1280,7 +1122,6 @@ function returnToLobby() {
 
     cleanupMultiplayerGame();
 
-    // Return to multiplayer lobby
     if (window.showView && window.multiplayerManager) {
         window.showView('multiplayer');
         window.multiplayerManager.showTab('lobby');
@@ -1288,7 +1129,6 @@ function returnToLobby() {
 }
 
 function returnToMenu() {
-    // Remove game over overlay
     const overlay = document.querySelector('.game-over-overlay');
     if (overlay) {
         overlay.remove();
@@ -1296,13 +1136,11 @@ function returnToMenu() {
 
     cleanupMultiplayerGame();
 
-    // Return to main menu
     if (window.showView) {
         window.showView('mainMenu');
     }
 }
 
-// Make functions globally available
 window.startMultiplayerGame = startMultiplayerGame;
 window.returnToLobby = returnToLobby;
 window.returnToMenu = returnToMenu;

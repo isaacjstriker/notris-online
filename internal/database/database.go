@@ -9,12 +9,12 @@ import (
 	"time"
 
 	"github.com/lib/pq"
-	_ "github.com/lib/pq" // PostgreSQL driver
+	_ "github.com/lib/pq"
 )
 
 type DB struct {
 	conn   *sql.DB
-	dbType string // "postgres"
+	dbType string
 }
 
 type User struct {
@@ -34,13 +34,12 @@ type GameScore struct {
 	PlayedAt       time.Time              `json:"played_at"`
 }
 
-// MultiplayerRoom represents a multiplayer game room
 type MultiplayerRoom struct {
 	ID         string                 `json:"id"`
 	Name       string                 `json:"name"`
 	GameType   string                 `json:"game_type"`
 	MaxPlayers int                    `json:"max_players"`
-	Status     string                 `json:"status"` // "waiting", "playing", "finished"
+	Status     string                 `json:"status"`
 	CreatedBy  int                    `json:"created_by"`
 	CreatedAt  time.Time              `json:"created_at"`
 	StartedAt  *time.Time             `json:"started_at,omitempty"`
@@ -50,32 +49,29 @@ type MultiplayerRoom struct {
 	Spectators []int                  `json:"spectators,omitempty"`
 }
 
-// MultiplayerPlayer represents a player in a multiplayer game
 type MultiplayerPlayer struct {
 	UserID     int                    `json:"user_id"`
 	Username   string                 `json:"username"`
-	Position   int                    `json:"position"` // 1-based ranking
+	Position   int                    `json:"position"`
 	Score      int                    `json:"score"`
-	Status     string                 `json:"status"` // "playing", "finished", "disconnected"
+	Status     string                 `json:"status"`
 	JoinedAt   time.Time              `json:"joined_at"`
 	FinishedAt *time.Time             `json:"finished_at,omitempty"`
 	GameState  map[string]interface{} `json:"game_state,omitempty"`
 	IsReady    bool                   `json:"is_ready"`
 }
 
-// MultiplayerGame represents a completed multiplayer game
 type MultiplayerGame struct {
 	ID         string              `json:"id"`
 	RoomID     string              `json:"room_id"`
 	GameType   string              `json:"game_type"`
-	Duration   int                 `json:"duration"` // seconds
+	Duration   int                 `json:"duration"`
 	StartedAt  time.Time           `json:"started_at"`
 	FinishedAt time.Time           `json:"finished_at"`
 	Winner     *int                `json:"winner,omitempty"`
 	Players    []MultiplayerPlayer `json:"players"`
 }
 
-// LeaderboardEntry represents a single entry in the leaderboard
 type LeaderboardEntry struct {
 	Username     string                 `json:"username"`
 	GameType     string                 `json:"game_type"`
@@ -91,14 +87,12 @@ type LeaderboardEntry struct {
 	Metadata     map[string]interface{} `json:"metadata,omitempty"`
 }
 
-// LeaderboardFilter represents filtering options for leaderboards
 type LeaderboardFilter struct {
-	TimePeriod string // "daily", "weekly", "monthly", "all"
-	Category   string // "score", "speed", "efficiency", "endurance"
-	UserID     *int   // Optional filter for specific user
+	TimePeriod string
+	Category   string
+	UserID     *int
 }
 
-// UserStats represents user statistics for a specific game
 type UserStats struct {
 	BestScore   int       `json:"best_score"`
 	AvgScore    float64   `json:"avg_score"`
@@ -106,19 +100,15 @@ type UserStats struct {
 	LastPlayed  time.Time `json:"last_played"`
 }
 
-// Connect establishes a connection to the database.
-// This function will now be the primary way to connect.
 func Connect(dbURL string) (*DB, error) {
 	if dbURL == "" {
 		return nil, fmt.Errorf("database URL is required")
 	}
 
-	// Determine driver from URL prefix
 	var driverName string
 	if strings.HasPrefix(dbURL, "postgres://") || strings.HasPrefix(dbURL, "postgresql://") {
 		driverName = "postgres"
 	} else {
-		// You can add other drivers here if needed in the future
 		return nil, fmt.Errorf("unsupported database type for URL")
 	}
 
@@ -135,9 +125,7 @@ func Connect(dbURL string) (*DB, error) {
 	return &DB{conn: conn, dbType: driverName}, nil
 }
 
-// CreateTables creates the necessary database tables
 func (db *DB) CreateTables() error {
-	// PostgreSQL table creation
 	queries := []string{
 		`CREATE TABLE IF NOT EXISTS users (
 			id SERIAL PRIMARY KEY,
@@ -216,22 +204,18 @@ func (db *DB) CreateTables() error {
 	return nil
 }
 
-// Exec wrapper for convenience
 func (db *DB) Exec(query string, args ...interface{}) (sql.Result, error) {
 	return db.conn.Exec(query, args...)
 }
 
-// Query wrapper for convenience
 func (db *DB) Query(query string, args ...interface{}) (*sql.Rows, error) {
 	return db.conn.Query(query, args...)
 }
 
-// QueryRow wrapper for convenience
 func (db *DB) QueryRow(query string, args ...interface{}) *sql.Row {
 	return db.conn.QueryRow(query, args...)
 }
 
-// CreateUser creates a new user in the database
 func (db *DB) CreateUser(username, email, passwordHash string) (*User, error) {
 	query := `
 		INSERT INTO users (username, email, password_hash)
@@ -252,7 +236,6 @@ func (db *DB) CreateUser(username, email, passwordHash string) (*User, error) {
 	}, nil
 }
 
-// GetUserByUsername retrieves a user by username
 func (db *DB) GetUserByUsername(username string) (*User, string, error) {
 	query := `
 		SELECT id, username, email, password_hash, created_at, last_login
@@ -272,7 +255,6 @@ func (db *DB) GetUserByUsername(username string) (*User, string, error) {
 	return &user, passwordHash, nil
 }
 
-// SaveGameScore saves a game score to the database
 func (db *DB) SaveGameScore(userID int, gameType string, score int, metadata map[string]interface{}) error {
 	query := `
 		INSERT INTO game_scores (user_id, game_type, score, metadata, played_at)
@@ -285,7 +267,7 @@ func (db *DB) SaveGameScore(userID int, gameType string, score int, metadata map
 		if err != nil {
 			return fmt.Errorf("failed to marshal metadata: %w", err)
 		}
-		metadataValue = metadataJSON // For PostgreSQL JSONB
+		metadataValue = metadataJSON
 	}
 
 	_, err := db.conn.Exec(query, userID, gameType, score, metadataValue, time.Now())
@@ -296,14 +278,11 @@ func (db *DB) SaveGameScore(userID int, gameType string, score int, metadata map
 	return nil
 }
 
-// GetLeaderboard retrieves the leaderboard for a specific game
 func (db *DB) GetLeaderboard(gameType string, limit int) ([]LeaderboardEntry, error) {
 	return db.GetFilteredLeaderboard(gameType, limit, LeaderboardFilter{TimePeriod: "all", Category: "score"})
 }
 
-// GetFilteredLeaderboard retrieves the leaderboard with advanced filtering
 func (db *DB) GetFilteredLeaderboard(gameType string, limit int, filter LeaderboardFilter) ([]LeaderboardEntry, error) {
-	// Build time filter condition
 	timeCondition := ""
 	switch filter.TimePeriod {
 	case "daily":
@@ -312,17 +291,15 @@ func (db *DB) GetFilteredLeaderboard(gameType string, limit int, filter Leaderbo
 		timeCondition = "AND gs.played_at >= NOW() - INTERVAL '1 week'"
 	case "monthly":
 		timeCondition = "AND gs.played_at >= NOW() - INTERVAL '1 month'"
-	default: // "all"
+	default:
 		timeCondition = ""
 	}
 
-	// Build category-specific ordering
 	var orderBy string
 	var selectFields string
 
 	switch filter.Category {
 	case "speed":
-		// Fastest completion time (from metadata)
 		selectFields = `
 			u.username,
 			MAX(gs.score) as best_score,
@@ -336,7 +313,6 @@ func (db *DB) GetFilteredLeaderboard(gameType string, limit int, filter Leaderbo
 		`
 		orderBy = "best_time ASC NULLS LAST"
 	case "efficiency":
-		// Highest pieces per minute
 		selectFields = `
 			u.username,
 			MAX(gs.score) as best_score,
@@ -350,7 +326,6 @@ func (db *DB) GetFilteredLeaderboard(gameType string, limit int, filter Leaderbo
 		`
 		orderBy = "avg_ppm DESC NULLS LAST"
 	case "endurance":
-		// Longest game time
 		selectFields = `
 			u.username,
 			MAX(gs.score) as best_score,
@@ -363,7 +338,7 @@ func (db *DB) GetFilteredLeaderboard(gameType string, limit int, filter Leaderbo
 			AVG(COALESCE((gs.metadata->>'ppm')::float, 0)) as avg_ppm
 		`
 		orderBy = "best_time DESC NULLS LAST"
-	default: // "score"
+	default:
 		selectFields = `
 			u.username,
 			MAX(gs.score) as best_score,
@@ -440,7 +415,6 @@ func (db *DB) GetFilteredLeaderboard(gameType string, limit int, filter Leaderbo
 	return entries, nil
 }
 
-// GetUserStats retrieves statistics for a specific user and game
 func (db *DB) GetUserStats(userID int, gameType string) (*LeaderboardEntry, error) {
 	query := `
 		SELECT 
@@ -469,11 +443,9 @@ func (db *DB) GetUserStats(userID int, gameType string) (*LeaderboardEntry, erro
 	return &entry, nil
 }
 
-// GetUserAchievements calculates achievements for a user based on their game history
 func (db *DB) GetUserAchievements(userID int, gameType string) ([]string, error) {
 	var achievements []string
 
-	// Query user's game statistics
 	query := `
 		SELECT 
 			COUNT(*) as total_games,
@@ -501,7 +473,6 @@ func (db *DB) GetUserAchievements(userID int, gameType string) ([]string, error)
 		return achievements, fmt.Errorf("failed to get user achievements: %w", err)
 	}
 
-	// Calculate achievements based on stats
 	if totalGames.Valid {
 		if totalGames.Int64 >= 1 {
 			achievements = append(achievements, "First Game")
@@ -553,7 +524,6 @@ func (db *DB) GetUserAchievements(userID int, gameType string) ([]string, error)
 	return achievements, nil
 }
 
-// GetRecentGames gets recent games for activity feed
 func (db *DB) GetRecentGames(gameType string, limit int) ([]GameScore, error) {
 	query := `
 		SELECT gs.id, gs.user_id, gs.game_type, gs.score, gs.metadata, gs.played_at, u.username
@@ -584,14 +554,12 @@ func (db *DB) GetRecentGames(gameType string, limit int) ([]GameScore, error) {
 			return nil, fmt.Errorf("failed to scan recent game: %w", err)
 		}
 
-		// Parse metadata
 		if len(metadataJSON) > 0 {
 			if err := json.Unmarshal(metadataJSON, &game.AdditionalData); err != nil {
 				game.AdditionalData = make(map[string]interface{})
 			}
 		}
 
-		// Add username to metadata for easier access
 		if game.AdditionalData == nil {
 			game.AdditionalData = make(map[string]interface{})
 		}
@@ -603,9 +571,6 @@ func (db *DB) GetRecentGames(gameType string, limit int) ([]GameScore, error) {
 	return games, nil
 }
 
-// Multiplayer Room Management
-
-// CreateMultiplayerRoom creates a new multiplayer room
 func (db *DB) CreateMultiplayerRoom(room *MultiplayerRoom) error {
 	settingsJSON, err := json.Marshal(room.Settings)
 	if err != nil {
@@ -624,7 +589,6 @@ func (db *DB) CreateMultiplayerRoom(room *MultiplayerRoom) error {
 	return nil
 }
 
-// GetMultiplayerRoom gets a room by ID with players
 func (db *DB) GetMultiplayerRoom(roomID string) (*MultiplayerRoom, error) {
 	query := `
 		SELECT r.id, r.name, r.game_type, r.max_players, r.status, r.created_by, 
@@ -643,14 +607,12 @@ func (db *DB) GetMultiplayerRoom(roomID string) (*MultiplayerRoom, error) {
 		return nil, fmt.Errorf("failed to get room: %w", err)
 	}
 
-	// Parse settings
 	if len(settingsJSON) > 0 {
 		if err := json.Unmarshal(settingsJSON, &room.Settings); err != nil {
 			room.Settings = make(map[string]interface{})
 		}
 	}
 
-	// Get players
 	players, err := db.GetRoomPlayers(roomID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get room players: %w", err)
@@ -660,7 +622,6 @@ func (db *DB) GetMultiplayerRoom(roomID string) (*MultiplayerRoom, error) {
 	return &room, nil
 }
 
-// GetAvailableRooms gets rooms that can be joined
 func (db *DB) GetAvailableRooms(gameType string) ([]MultiplayerRoom, error) {
 	query := `
 		SELECT r.id, r.name, r.game_type, r.max_players, r.status, r.created_by, 
@@ -696,14 +657,12 @@ func (db *DB) GetAvailableRooms(gameType string) ([]MultiplayerRoom, error) {
 			return nil, fmt.Errorf("failed to scan room: %w", err)
 		}
 
-		// Parse settings
 		if len(settingsJSON) > 0 {
 			if err := json.Unmarshal(settingsJSON, &room.Settings); err != nil {
 				room.Settings = make(map[string]interface{})
 			}
 		}
 
-		// Add current player count to settings for display
 		if room.Settings == nil {
 			room.Settings = make(map[string]interface{})
 		}
@@ -715,9 +674,7 @@ func (db *DB) GetAvailableRooms(gameType string) ([]MultiplayerRoom, error) {
 	return rooms, nil
 }
 
-// JoinMultiplayerRoom adds a player to a room
 func (db *DB) JoinMultiplayerRoom(roomID string, userID int) error {
-	// Check if room exists and has space
 	room, err := db.GetMultiplayerRoom(roomID)
 	if err != nil {
 		return fmt.Errorf("failed to get room: %w", err)
@@ -731,7 +688,6 @@ func (db *DB) JoinMultiplayerRoom(roomID string, userID int) error {
 		return fmt.Errorf("room is full")
 	}
 
-	// Add player to room
 	query := `
 		INSERT INTO multiplayer_players (room_id, user_id, is_ready)
 		VALUES ($1, $2, false)
@@ -745,7 +701,6 @@ func (db *DB) JoinMultiplayerRoom(roomID string, userID int) error {
 	return nil
 }
 
-// LeaveMultiplayerRoom removes a player from a room
 func (db *DB) LeaveMultiplayerRoom(roomID string, userID int) error {
 	query := `DELETE FROM multiplayer_players WHERE room_id = $1 AND user_id = $2`
 	_, err := db.conn.Exec(query, roomID, userID)
@@ -753,7 +708,6 @@ func (db *DB) LeaveMultiplayerRoom(roomID string, userID int) error {
 		return fmt.Errorf("failed to leave room: %w", err)
 	}
 
-	// If room is empty, delete it
 	countQuery := `SELECT COUNT(*) FROM multiplayer_players WHERE room_id = $1`
 	var playerCount int
 	err = db.conn.QueryRow(countQuery, roomID).Scan(&playerCount)
@@ -765,7 +719,6 @@ func (db *DB) LeaveMultiplayerRoom(roomID string, userID int) error {
 	return nil
 }
 
-// GetRoomPlayers gets all players in a room
 func (db *DB) GetRoomPlayers(roomID string) ([]MultiplayerPlayer, error) {
 	query := `
 		SELECT p.user_id, u.username, p.position, p.score, p.status, 
@@ -795,7 +748,6 @@ func (db *DB) GetRoomPlayers(roomID string) ([]MultiplayerPlayer, error) {
 			return nil, fmt.Errorf("failed to scan player: %w", err)
 		}
 
-		// Parse game state
 		if len(gameStateJSON) > 0 {
 			if err := json.Unmarshal(gameStateJSON, &player.GameState); err != nil {
 				player.GameState = make(map[string]interface{})
@@ -808,7 +760,6 @@ func (db *DB) GetRoomPlayers(roomID string) ([]MultiplayerPlayer, error) {
 	return players, nil
 }
 
-// UpdatePlayerReady sets a player's ready status
 func (db *DB) UpdatePlayerReady(roomID string, userID int, isReady bool) error {
 	query := `
 		UPDATE multiplayer_players 
@@ -823,9 +774,7 @@ func (db *DB) UpdatePlayerReady(roomID string, userID int, isReady bool) error {
 	return nil
 }
 
-// StartMultiplayerGame starts a game if all players are ready
 func (db *DB) StartMultiplayerGame(roomID string) error {
-	// Check if all players are ready
 	query := `
 		SELECT COUNT(*) as total, COUNT(CASE WHEN is_ready THEN 1 END) as ready
 		FROM multiplayer_players 
@@ -845,7 +794,6 @@ func (db *DB) StartMultiplayerGame(roomID string) error {
 		return fmt.Errorf("not all players are ready")
 	}
 
-	// Update room status
 	updateQuery := `
 		UPDATE multiplayer_rooms 
 		SET status = 'playing', started_at = CURRENT_TIMESTAMP 
@@ -859,7 +807,6 @@ func (db *DB) StartMultiplayerGame(roomID string) error {
 	return nil
 }
 
-// UpdatePlayerGameState updates a player's game state during play
 func (db *DB) UpdatePlayerGameState(roomID string, userID int, gameState map[string]interface{}, score int) error {
 	gameStateJSON, err := json.Marshal(gameState)
 	if err != nil {
@@ -879,7 +826,6 @@ func (db *DB) UpdatePlayerGameState(roomID string, userID int, gameState map[str
 	return nil
 }
 
-// FinishPlayerGame marks a player as finished
 func (db *DB) FinishPlayerGame(roomID string, userID int, finalScore int, position int) error {
 	query := `
 		UPDATE multiplayer_players 
@@ -894,12 +840,10 @@ func (db *DB) FinishPlayerGame(roomID string, userID int, finalScore int, positi
 	return nil
 }
 
-// CleanupInactiveRooms removes rooms that have been waiting for more than the specified duration
 func (db *DB) CleanupInactiveRooms(maxAge time.Duration) ([]string, error) {
 	cutoffTime := time.Now().UTC().Add(-maxAge)
 	log.Printf("Running cleanup for rooms older than %v (cutoff UTC: %v)", maxAge, cutoffTime)
 
-	// First, get the IDs of rooms that will be cleaned up
 	selectQuery := `
 		SELECT id, name, created_at FROM multiplayer_rooms 
 		WHERE status = 'waiting' AND created_at < $1
@@ -939,7 +883,6 @@ func (db *DB) CleanupInactiveRooms(maxAge time.Duration) ([]string, error) {
 		return roomsToCleanup, nil
 	}
 
-	// Delete players from these rooms first
 	deletePlayersQuery := `
 		DELETE FROM multiplayer_players 
 		WHERE room_id = ANY($1)
@@ -950,7 +893,6 @@ func (db *DB) CleanupInactiveRooms(maxAge time.Duration) ([]string, error) {
 		return nil, fmt.Errorf("failed to delete players from inactive rooms: %w", err)
 	}
 
-	// Delete the rooms
 	deleteRoomsQuery := `
 		DELETE FROM multiplayer_rooms 
 		WHERE id = ANY($1)
@@ -961,7 +903,6 @@ func (db *DB) CleanupInactiveRooms(maxAge time.Duration) ([]string, error) {
 		return nil, fmt.Errorf("failed to delete inactive rooms: %w", err)
 	}
 
-	// Log the cleanup
 	for _, room := range roomData {
 		log.Printf("Cleaned up inactive room: %s (%s)", room.Name, room.ID)
 	}
@@ -969,7 +910,6 @@ func (db *DB) CleanupInactiveRooms(maxAge time.Duration) ([]string, error) {
 	return roomsToCleanup, nil
 }
 
-// CalculatePlayerPosition determines finishing position based on score
 func (db *DB) CalculatePlayerPosition(roomID string, score int) (int, error) {
 	query := `
 		SELECT COUNT(*) + 1 
@@ -984,7 +924,6 @@ func (db *DB) CalculatePlayerPosition(roomID string, score int) (int, error) {
 	return position, nil
 }
 
-// GetFinishedPlayerCount returns count of finished players in a room
 func (db *DB) GetFinishedPlayerCount(roomID string) (int, error) {
 	query := `
 		SELECT COUNT(*) 
@@ -999,7 +938,6 @@ func (db *DB) GetFinishedPlayerCount(roomID string) (int, error) {
 	return count, nil
 }
 
-// GetGameResults gets final results for a completed game
 func (db *DB) GetGameResults(roomID string) ([]map[string]interface{}, error) {
 	query := `
 		SELECT mp.user_id, u.username, mp.score, mp.position, mp.finished_at
@@ -1038,7 +976,6 @@ func (db *DB) GetGameResults(roomID string) ([]map[string]interface{}, error) {
 	return results, nil
 }
 
-// UpdateRoomStatus updates the status of a multiplayer room
 func (db *DB) UpdateRoomStatus(roomID string, status string) error {
 	query := `UPDATE multiplayer_rooms SET status = $2 WHERE id = $1`
 	_, err := db.conn.Exec(query, roomID, status)
@@ -1048,7 +985,6 @@ func (db *DB) UpdateRoomStatus(roomID string, status string) error {
 	return nil
 }
 
-// GetUsernameByID gets username by user ID
 func (db *DB) GetUsernameByID(userID int) (string, error) {
 	var username string
 	query := `SELECT username FROM users WHERE id = $1`
@@ -1059,7 +995,6 @@ func (db *DB) GetUsernameByID(userID int) (string, error) {
 	return username, nil
 }
 
-// UpdatePlayerStatus updates a player's status in a multiplayer room
 func (db *DB) UpdatePlayerStatus(roomID string, userID int, status string) error {
 	query := `
 		UPDATE multiplayer_players 
@@ -1073,7 +1008,6 @@ func (db *DB) UpdatePlayerStatus(roomID string, userID int, status string) error
 	return nil
 }
 
-// UpdateRoomSettings updates the settings for a multiplayer room
 func (db *DB) UpdateRoomSettings(roomID string, settings map[string]interface{}) error {
 	settingsJSON, err := json.Marshal(settings)
 	if err != nil {
@@ -1087,7 +1021,6 @@ func (db *DB) UpdateRoomSettings(roomID string, settings map[string]interface{})
 	return nil
 }
 
-// Close closes the database connection
 func (db *DB) Close() error {
 	return db.conn.Close()
 }
