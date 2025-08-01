@@ -79,7 +79,6 @@ function renderLeaderboard(entries) {
                 <th>Best Score</th>
                 <th>Avg Score</th>
                 <th>Games</th>
-                <th>Achievements</th>
             </tr>
         </thead>
         <tbody>
@@ -90,7 +89,6 @@ function renderLeaderboard(entries) {
                     <td class="score-cell">${formatScore(entry.best_score)}</td>
                     <td class="avg-cell">${entry.avg_score.toFixed(0)}</td>
                     <td class="games-cell">${entry.games_played}</td>
-                    <td class="achievements-cell">${formatAchievements(entry.achievements)}</td>
                 </tr>
             `).join('')}
         </tbody>

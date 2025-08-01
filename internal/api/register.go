@@ -11,7 +11,6 @@ import (
 
 type RegisterUserRequest struct {
 	Username string `json:"username"`
-	Email    string `json:"email"`
 	Password string `json:"password"`
 }
 
@@ -26,10 +25,6 @@ func (s *APIServer) handleRegister(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, apiError{Error: err.Error()})
 		return
 	}
-	if err := auth.ValidateEmail(req.Email); err != nil {
-		writeJSON(w, http.StatusBadRequest, apiError{Error: err.Error()})
-		return
-	}
 	if err := auth.ValidatePassword(req.Password); err != nil {
 		writeJSON(w, http.StatusBadRequest, apiError{Error: err.Error()})
 		return
@@ -41,12 +36,12 @@ func (s *APIServer) handleRegister(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, err := s.db.CreateUser(req.Username, req.Email, hashedPassword)
+	user, err := s.db.CreateUser(req.Username, hashedPassword)
 	if err != nil {
 		log.Printf("Error creating user: %v", err)
 
 		if strings.Contains(err.Error(), "UNIQUE constraint failed") || strings.Contains(err.Error(), "duplicate key value violates unique constraint") {
-			writeJSON(w, http.StatusConflict, apiError{Error: "username or email already exists"})
+			writeJSON(w, http.StatusConflict, apiError{Error: "username already exists"})
 		} else {
 			writeJSON(w, http.StatusInternalServerError, apiError{Error: "failed to create user"})
 		}

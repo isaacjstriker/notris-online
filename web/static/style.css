@@ -693,6 +693,7 @@ input[type="password"] {
     display: inline-block;
     width: 80%;
     max-width: 300px;
+    vertical-align: top;
 }
 
 .password-input-container input[type="password"],
@@ -701,6 +702,7 @@ input[type="password"] {
     padding-right: 45px;
     /* Make room for the toggle button */
     box-sizing: border-box;
+    margin: 0;
 }
 
 .password-toggle-btn {
@@ -708,28 +710,44 @@ input[type="password"] {
     right: 10px;
     top: 50%;
     transform: translateY(-50%);
-    background: none;
-    border: none;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid transparent;
     cursor: pointer;
-    padding: 5px;
+    padding: 0;
+    margin: 0;
     color: #888;
     font-size: 16px;
-    line-height: 1;
+    line-height: 30px;
     display: flex;
     align-items: center;
     justify-content: center;
     border-radius: 3px;
-    transition: color 0.2s ease;
+    transition: color 0.2s ease, background-color 0.2s ease;
+    width: 30px;
+    height: 30px;
+    min-width: 30px;
+    min-height: 30px;
+    max-width: 30px;
+    max-height: 30px;
+    flex-shrink: 0;
+    box-sizing: border-box;
+    vertical-align: top;
+    outline: none;
 }
 
 .password-toggle-btn:hover {
     color: #fff;
-    background-color: rgba(255, 255, 255, 0.1);
+    background-color: rgba(255, 255, 255, 0.15);
+    border: 1px solid transparent;
+    transform: translateY(-50%);
 }
 
 .password-toggle-btn:focus {
     outline: none;
     color: #03dac6;
+    background-color: rgba(3, 218, 198, 0.1);
+    border: 1px solid transparent;
+    transform: translateY(-50%);
 }
 
 .password-toggle-icon {

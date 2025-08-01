@@ -130,7 +130,7 @@ func (db *DB) CreateTables() error {
 		`CREATE TABLE IF NOT EXISTS users (
 			id SERIAL PRIMARY KEY,
 			username VARCHAR(50) UNIQUE NOT NULL,
-			email VARCHAR(100) UNIQUE NOT NULL,
+			email VARCHAR(100) UNIQUE,
 			password_hash VARCHAR(255) NOT NULL,
 			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 			last_login TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -216,14 +216,14 @@ func (db *DB) QueryRow(query string, args ...interface{}) *sql.Row {
 	return db.conn.QueryRow(query, args...)
 }
 
-func (db *DB) CreateUser(username, email, passwordHash string) (*User, error) {
+func (db *DB) CreateUser(username, passwordHash string) (*User, error) {
 	query := `
-		INSERT INTO users (username, email, password_hash)
-		VALUES ($1, $2, $3)
+		INSERT INTO users (username, password_hash)
+		VALUES ($1, $2)
 		RETURNING id, created_at
 	`
 	var user User
-	err := db.conn.QueryRow(query, username, email, passwordHash).Scan(&user.ID, &user.CreatedAt)
+	err := db.conn.QueryRow(query, username, passwordHash).Scan(&user.ID, &user.CreatedAt)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create user: %w", err)
 	}
@@ -231,7 +231,7 @@ func (db *DB) CreateUser(username, email, passwordHash string) (*User, error) {
 	return &User{
 		ID:        user.ID,
 		Username:  username,
-		Email:     email,
+		Email:     "", // No email provided
 		CreatedAt: user.CreatedAt,
 	}, nil
 }
