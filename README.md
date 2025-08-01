@@ -33,17 +33,13 @@ This project serves as a comprehensive demonstration of modern web application d
 
 - [Go](https://go.dev/doc/install) 1.19 or later
 - [PostgreSQL](https://www.postgresql.org/download/) database (local or cloud)
-- [Goose](https://github.com/pressly/goose) for database migrations:
-  ```bash
-  go install github.com/pressly/goose/v3/cmd/goose@latest
-  ```
 
 ### Installation
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/isaacjstriker/devware.git
-   cd devware
+   git clone https://github.com/isaacjstriker/notris-online.git
+   cd notris-online
    ```
 
 2. **Set up environment variables**
@@ -64,17 +60,12 @@ This project serves as a comprehensive demonstration of modern web application d
    go mod tidy
    ```
 
-4. **Run database migrations**
-   ```bash
-   goose -dir sql/schema postgres "$DATABASE_URL" up
-   ```
-
-5. **Start the server**
+4. **Start the server**
    ```bash
    go run .
    ```
 
-6. **Open your browser**
+5. **Open your browser**
    Navigate to `http://localhost:8080` to start playing!
 
 ## Usage
