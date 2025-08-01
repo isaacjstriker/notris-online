@@ -4,14 +4,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dev Ware</title>
+    <title>Notris-Online</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' fill='%23000'/><rect x='10' y='10' width='20' height='20' fill='%2300FFFF'/><rect x='30' y='10' width='20' height='20' fill='%2300FFFF'/><rect x='50' y='10' width='20' height='20' fill='%2300FFFF'/><rect x='70' y='10' width='20' height='20' fill='%2300FFFF'/><rect x='20' y='30' width='20' height='20' fill='%23FFFF00'/><rect x='40' y='30' width='20' height='20' fill='%23FFFF00'/><rect x='20' y='50' width='20' height='20' fill='%23FFFF00'/><rect x='40' y='50' width='20' height='20' fill='%23FFFF00'/><rect x='60' y='70' width='20' height='20' fill='%23FF0000'/><rect x='80' y='70' width='20' height='20' fill='%23FF0000'/><rect x='60' y='90' width='20' height='20' fill='%23FF0000'/><rect x='80' y='90' width='20' height='20' fill='%23FF0000'/></svg>">
     <link rel="stylesheet" href="/static/style.css">
 </head>
 
 <body>
     <div id="app-container">
         <header id="main-header">
-            <h1>Dev Ware</h1>
+            <h1>Notris-Online</h1>
             <nav id="auth-nav">
                 <button id="login-nav-btn" class="nav-btn">Login</button>
                 <button id="register-nav-btn" class="nav-btn">Register</button>
@@ -25,7 +26,7 @@
         <main>
             <!-- Main Menu View -->
             <div id="main-menu-view">
-                <h1 id="game-title">TETRIS ONLINE</h1>
+                <h1 id="game-title">NOTRIS ONLINE</h1>
                 <div class="menu-options">
                     <button id="singleplayer-btn" class="menu-btn">Singleplayer</button>
                     <button id="multiplayer-btn" class="menu-btn">Multiplayer</button>
@@ -211,6 +212,7 @@
                     <button type="button" class="link-btn" id="show-register-btn">Don't have an account?
                         Register</button>
                 </form>
+                <button id="back-to-menu-from-login-btn" class="back-btn">Back to Menu</button>
             </div>
 
             <!-- Register View -->
@@ -226,6 +228,7 @@
                     <p class="error-message" id="register-error"></p>
                     <button type="button" class="link-btn" id="show-login-btn">Already have an account? Login</button>
                 </form>
+                <button id="back-to-menu-from-register-btn" class="back-btn">Back to Menu</button>
             </div>
 
             <!-- Leaderboard View -->

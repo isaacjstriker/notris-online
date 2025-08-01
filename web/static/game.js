@@ -195,12 +195,23 @@ function escapeHTML(str) {
 }
 
 let ws;
-const canvas = document.getElementById('game-canvas');
-const ctx = canvas.getContext('2d');
-const nextPieceCanvas = document.getElementById('next-piece-canvas');
-const nextPieceCtx = nextPieceCanvas.getContext('2d');
-const holdPieceCanvas = document.getElementById('hold-piece-canvas');
-const holdPieceCtx = holdPieceCanvas.getContext('2d');
+let canvas, ctx, nextPieceCanvas, nextPieceCtx, holdPieceCanvas, holdPieceCtx;
+
+function initializeSingleplayerCanvases() {
+    canvas = document.getElementById('game-canvas');
+    ctx = canvas.getContext('2d');
+    nextPieceCanvas = document.getElementById('next-piece-canvas');
+    nextPieceCtx = nextPieceCanvas.getContext('2d');
+    holdPieceCanvas = document.getElementById('hold-piece-canvas');
+    holdPieceCtx = holdPieceCanvas.getContext('2d');
+    
+    if (!canvas || !ctx || !nextPieceCanvas || !nextPieceCtx || !holdPieceCanvas || !holdPieceCtx) {
+        console.error('Failed to initialize singleplayer canvases');
+        return false;
+    }
+    
+    return true;
+}
 
 function cleanupGame() {
     if (typeof ws !== 'undefined' && ws) {
@@ -210,23 +221,17 @@ function cleanupGame() {
 
     document.removeEventListener('keydown', handleKeyPress);
 
-    const canvas = document.getElementById('game-canvas');
-    if (canvas) {
-        const ctx = canvas.getContext('2d');
+    if (canvas && ctx) {
         ctx.fillStyle = '#000';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
     }
 
-    const nextPieceCanvas = document.getElementById('next-piece-canvas');
-    if (nextPieceCanvas) {
-        const nextPieceCtx = nextPieceCanvas.getContext('2d');
+    if (nextPieceCanvas && nextPieceCtx) {
         nextPieceCtx.fillStyle = '#000';
         nextPieceCtx.fillRect(0, 0, nextPieceCanvas.width, nextPieceCanvas.height);
     }
 
-    const holdPieceCanvas = document.getElementById('hold-piece-canvas');
-    if (holdPieceCanvas) {
-        const holdPieceCtx = holdPieceCanvas.getContext('2d');
+    if (holdPieceCanvas && holdPieceCtx) {
         holdPieceCtx.fillStyle = '#000';
         holdPieceCtx.fillRect(0, 0, holdPieceCanvas.width, holdPieceCanvas.height);
     }
@@ -234,6 +239,13 @@ function cleanupGame() {
 
 function startGame(gameType, startLevel = GAME_CONFIG.DEFAULT_STARTING_LEVEL) {
     cleanupGame();
+
+    // Initialize canvases for singleplayer
+    if (!initializeSingleplayerCanvases()) {
+        console.error('Cannot start game - canvas initialization failed');
+        alert('Failed to initialize game. Please refresh the page and try again.');
+        return;
+    }
 
     const protocol = window.location.protocol === 'https' ? 'wss' : 'ws';
     const wsURL = `${protocol}://${window.location.host}/ws/game`;

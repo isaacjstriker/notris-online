@@ -38,7 +38,8 @@ async function handleLogin(event) {
     try {
         const data = await loginUser(username, password);
         saveAuthInfo(data.token, data.username, data.user_id);
-        location.reload();
+        updateAuthUI();
+        showView('mainMenu');
     } catch (error) {
         errorEl.textContent = error.message;
     }

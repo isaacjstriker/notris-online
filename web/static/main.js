@@ -99,6 +99,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.getElementById('show-register-btn').addEventListener('click', () => showView('register'));
     document.getElementById('show-login-btn').addEventListener('click', () => showView('login'));
+    document.getElementById('show-login-btn').addEventListener('click', () => showView('login'));
 
     document.getElementById('game-menu-btn').addEventListener('click', () => {
         document.getElementById('game-menu-overlay').classList.remove('hidden');
@@ -163,6 +164,8 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('back-to-menu-from-leaderboard-btn').addEventListener('click', () => showView('mainMenu'));
     document.getElementById('back-to-menu-from-level-select-btn').addEventListener('click', () => showView('mainMenu'));
     document.getElementById('back-to-menu-from-multiplayer-btn').addEventListener('click', () => showView('mainMenu'));
+    document.getElementById('back-to-menu-from-login-btn').addEventListener('click', () => showView('mainMenu'));
+    document.getElementById('back-to-menu-from-register-btn').addEventListener('click', () => showView('mainMenu'));
 
     document.getElementById('login-form').addEventListener('submit', handleLogin);
     document.getElementById('register-form').addEventListener('submit', handleRegister);
