@@ -1,6 +1,13 @@
 # Notris Online
 
+[![Deploy to Render](https://github.com/isaacjstriker/devware/actions/workflows/deploy.yml/badge.svg)](https://github.com/isaacjstriker/devware/actions/workflows/deploy.yml)
+[![Go Version](https://img.shields.io/badge/Go-1.21+-00ADD8?style=flat&logo=go)](https://golang.org/)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Live Demo](https://img.shields.io/badge/demo-live-brightgreen)](https://notris-online.onrender.com/)
+
 A real-time multiplayer Tetris game built with Go and WebSockets, featuring user authentication, room-based matchmaking, and live gameplay synchronization.
+
+View it now at https://notris-online.onrender.com/
 
 ## Description
 
@@ -44,13 +51,13 @@ This project serves as a comprehensive demonstration of modern web application d
 
 2. **Set up environment variables**
    ```bash
-   cp .env.example .env
+   touch .env
    # Edit .env with your database connection details
    ```
    
    Required environment variables:
    ```env
-   DATABASE_URL="postgres://username:password@localhost/devware?sslmode=disable"
+   DATABASE_URL="postgres://username:password@localhost/notris-online?sslmode=disable"
    JWT_SECRET="your-secret-key-here"
    PORT=8080
    ```
@@ -124,6 +131,11 @@ Found a bug? Have a feature request? Please [open an issue](https://github.com/i
 - Steps to reproduce (for bugs)
 - Expected vs actual behavior
 - Your environment details (OS, browser, etc.)
+
+### About the developer
+Hi! I'm Isaac, and I've been fascinated with programming for a long time. I’d write games in Python, or work on a website for fun here and there, and always enjoyed coding. After 4 years as a mechanic, I’ve realized I have a real skill for this programming stuff, and decided to properly learn how to do it by taking some in-depth CS and backend development courses. Now that I’ve completed those and have several real-world projects under my belt, I’m excited for a full-time career in software engineering.
+
+I'm now intimately familiar with Go, which has quickly become my favorite language to write in.
 
 ---
 
