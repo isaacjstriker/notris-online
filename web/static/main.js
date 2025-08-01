@@ -192,7 +192,13 @@ document.addEventListener('DOMContentLoaded', () => {
             showView('game');
             // Small delay to ensure the view is fully rendered before starting the game
             setTimeout(() => {
-                startGame('tetris', startLevel);
+                // Try initializing canvases with retry logic first
+                if (initializeSingleplayerCanvasesWithRetry()) {
+                    startGame('tetris', startLevel);
+                } else {
+                    console.error('Failed to initialize canvases, cannot start game');
+                    alert('Failed to start the game. Please refresh the page and try again.');
+                }
             }, 100);
         });
     });

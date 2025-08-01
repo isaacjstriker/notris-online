@@ -197,33 +197,65 @@ function escapeHTML(str) {
 let ws;
 let canvas, ctx, nextPieceCanvas, nextPieceCtx, holdPieceCanvas, holdPieceCtx;
 
+function initializeSingleplayerCanvasesWithRetry(maxAttempts = 3) {
+    console.log(`Attempting canvas initialization (attempt 1 of ${maxAttempts})`);
+
+    let attempts = 0;
+
+    const tryInitialize = () => {
+        attempts++;
+        console.log(`Canvas initialization attempt ${attempts}/${maxAttempts}`);
+
+        if (initializeSingleplayerCanvases()) {
+            console.log('✅ Canvas initialization successful on attempt', attempts);
+            return true;
+        }
+
+        if (attempts < maxAttempts) {
+            console.log(`❌ Canvas initialization failed, retrying in ${GAME_CONFIG.CANVAS_SETUP_RETRY_DELAY}ms...`);
+            setTimeout(() => {
+                if (!tryInitialize()) {
+                    console.error('❌ All canvas initialization attempts failed');
+                    alert('Failed to initialize game. Please refresh the page and try again.');
+                }
+            }, GAME_CONFIG.CANVAS_SETUP_RETRY_DELAY);
+            return false;
+        } else {
+            console.error('❌ Canvas initialization failed after all attempts');
+            return false;
+        }
+    };
+
+    return tryInitialize();
+}
+
 function initializeSingleplayerCanvases() {
     console.log('Attempting to initialize singleplayer canvases...');
-    
+
     const gameView = document.getElementById('game-view');
     console.log('Game view element:', gameView);
     console.log('Game view hidden:', gameView?.classList.contains('hidden'));
     console.log('Game view display style:', gameView?.style.display);
-    
+
     canvas = document.getElementById('game-canvas');
     console.log('Found canvas element:', canvas);
-    
+
     if (canvas) {
         ctx = canvas.getContext('2d');
         console.log('Got canvas context:', ctx);
     }
-    
+
     nextPieceCanvas = document.getElementById('next-piece-canvas');
     console.log('Found next piece canvas:', nextPieceCanvas);
-    
+
     if (nextPieceCanvas) {
         nextPieceCtx = nextPieceCanvas.getContext('2d');
         console.log('Got next piece context:', nextPieceCtx);
     }
-    
+
     holdPieceCanvas = document.getElementById('hold-piece-canvas');
     console.log('Found hold piece canvas:', holdPieceCanvas);
-    
+
     if (holdPieceCanvas) {
         holdPieceCtx = holdPieceCanvas.getContext('2d');
         console.log('Got hold piece context:', holdPieceCtx);
@@ -241,7 +273,7 @@ function initializeSingleplayerCanvases() {
         });
         return false;
     }
-    
+
     console.log('All canvases initialized successfully');
     return true;
 }
@@ -274,14 +306,14 @@ function startGame(gameType, startLevel = GAME_CONFIG.DEFAULT_STARTING_LEVEL) {
     console.log('Starting singleplayer game with level:', startLevel);
     cleanupGame();
 
-    // Initialize canvases for singleplayer
-    if (!initializeSingleplayerCanvases()) {
-        console.error('Cannot start game - canvas initialization failed');
-        alert('Failed to initialize game. Please refresh the page and try again.');
+    // Canvases should already be initialized by caller, just verify they exist
+    if (!canvas || !ctx || !nextPieceCanvas || !nextPieceCtx || !holdPieceCanvas || !holdPieceCtx) {
+        console.error('Cannot start game - canvases not properly initialized');
+        alert('Game initialization failed. Please refresh the page and try again.');
         return;
     }
-    
-    console.log('Canvas initialization successful:', {
+
+    console.log('Canvas verification successful:', {
         canvas: !!canvas,
         ctx: !!ctx,
         nextPieceCanvas: !!nextPieceCanvas,
@@ -294,9 +326,17 @@ function startGame(gameType, startLevel = GAME_CONFIG.DEFAULT_STARTING_LEVEL) {
     const wsURL = `${protocol}://${window.location.host}/ws/game`;
 
     console.log('Connecting to:', wsURL);
+    console.log('Current location:', {
+        protocol: window.location.protocol,
+        host: window.location.host,
+        hostname: window.location.hostname,
+        port: window.location.port
+    });
+
     ws = new WebSocket(wsURL);
 
     ws.onopen = () => {
+        console.log(`✅ WebSocket connected to ${gameType} game server`);
         logger.info(`Connected to ${gameType} game server`);
         document.addEventListener('keydown', handleKeyPress);
 
@@ -328,12 +368,26 @@ function startGame(gameType, startLevel = GAME_CONFIG.DEFAULT_STARTING_LEVEL) {
         }
     };
 
-    ws.onclose = () => {
+    ws.onclose = (event) => {
+        console.log('WebSocket closed:', {
+            code: event.code,
+            reason: event.reason,
+            wasClean: event.wasClean
+        });
         logger.info('Disconnected from game server');
     };
 
     ws.onerror = (error) => {
+        console.error('❌ WebSocket Error details:', {
+            error: error,
+            readyState: ws.readyState,
+            url: wsURL,
+            timestamp: new Date().toISOString()
+        });
         logger.error('WebSocket Error', error);
+
+        // Show user-friendly error message
+        alert('Failed to connect to game server. Please check your internet connection and try again.');
     };
 }
 
@@ -490,12 +544,12 @@ function handleMultiplayerKeyPress(event) {
 
 function renderGame(state) {
     console.log('renderGame called with state:', state);
-    
+
     if (!canvas || !ctx) {
         console.error('Canvas or context not available for rendering:', { canvas: !!canvas, ctx: !!ctx });
         return;
     }
-    
+
     ctx.fillStyle = '#000';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
