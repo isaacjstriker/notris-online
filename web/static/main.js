@@ -269,4 +269,32 @@ document.addEventListener('DOMContentLoaded', () => {
             }, 5000);
         }
     });
+
+    // Password Toggle Functionality
+    function initializePasswordToggles() {
+        const passwordToggleBtns = document.querySelectorAll('.password-toggle-btn');
+
+        passwordToggleBtns.forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.preventDefault();
+
+                const targetId = btn.getAttribute('data-target');
+                const passwordInput = document.getElementById(targetId);
+                const toggleIcon = btn.querySelector('.password-toggle-icon');
+
+                if (passwordInput.type === 'password') {
+                    passwordInput.type = 'text';
+                    toggleIcon.textContent = '🙈'; // Hide icon
+                    btn.setAttribute('aria-label', 'Hide password');
+                } else {
+                    passwordInput.type = 'password';
+                    toggleIcon.textContent = '👁️'; // Show icon
+                    btn.setAttribute('aria-label', 'Show password');
+                }
+            });
+        });
+    }
+
+    // Initialize password toggles
+    initializePasswordToggles();
 });
