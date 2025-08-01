@@ -190,7 +190,10 @@ document.addEventListener('DOMContentLoaded', () => {
             const startLevel = parseInt(button.dataset.level);
             localStorage.setItem('lastSelectedLevel', startLevel);
             showView('game');
-            startGame('tetris', startLevel);
+            // Small delay to ensure the view is fully rendered before starting the game
+            setTimeout(() => {
+                startGame('tetris', startLevel);
+            }, 100);
         });
     });
 

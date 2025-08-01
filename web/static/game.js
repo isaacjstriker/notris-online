@@ -162,14 +162,14 @@ function formatAchievements(achievements) {
         'First Game': '🎮',
         'Getting Started': '🚀',
         'Dedicated Player': '⭐',
-        'Tetris Master': '👑',
+        'Notris Master': '👑',
         'High Scorer': '🎯',
         'Score Champion': '🏆',
         'Legendary Score': '💎',
         'Speed Demon': '⚡',
         'Lightning Fast': '🔥',
-        'First Tetris': '🧩',
-        'Tetris Expert': '🎪',
+        'First Notris': '🧩',
+        'Notris Expert': '🎪',
         'Line Clearer': '📏',
         'Line Master': '🏁'
     };
@@ -198,18 +198,51 @@ let ws;
 let canvas, ctx, nextPieceCanvas, nextPieceCtx, holdPieceCanvas, holdPieceCtx;
 
 function initializeSingleplayerCanvases() {
+    console.log('Attempting to initialize singleplayer canvases...');
+    
+    const gameView = document.getElementById('game-view');
+    console.log('Game view element:', gameView);
+    console.log('Game view hidden:', gameView?.classList.contains('hidden'));
+    console.log('Game view display style:', gameView?.style.display);
+    
     canvas = document.getElementById('game-canvas');
-    ctx = canvas.getContext('2d');
+    console.log('Found canvas element:', canvas);
+    
+    if (canvas) {
+        ctx = canvas.getContext('2d');
+        console.log('Got canvas context:', ctx);
+    }
+    
     nextPieceCanvas = document.getElementById('next-piece-canvas');
-    nextPieceCtx = nextPieceCanvas.getContext('2d');
+    console.log('Found next piece canvas:', nextPieceCanvas);
+    
+    if (nextPieceCanvas) {
+        nextPieceCtx = nextPieceCanvas.getContext('2d');
+        console.log('Got next piece context:', nextPieceCtx);
+    }
+    
     holdPieceCanvas = document.getElementById('hold-piece-canvas');
-    holdPieceCtx = holdPieceCanvas.getContext('2d');
+    console.log('Found hold piece canvas:', holdPieceCanvas);
+    
+    if (holdPieceCanvas) {
+        holdPieceCtx = holdPieceCanvas.getContext('2d');
+        console.log('Got hold piece context:', holdPieceCtx);
+    }
 
     if (!canvas || !ctx || !nextPieceCanvas || !nextPieceCtx || !holdPieceCanvas || !holdPieceCtx) {
         console.error('Failed to initialize singleplayer canvases');
+        console.error('Missing elements:', {
+            canvas: !canvas,
+            ctx: !ctx,
+            nextPieceCanvas: !nextPieceCanvas,
+            nextPieceCtx: !nextPieceCtx,
+            holdPieceCanvas: !holdPieceCanvas,
+            holdPieceCtx: !holdPieceCtx
+        });
         return false;
     }
-
+    
+    console.log('All canvases initialized successfully');
     return true;
 }
 
@@ -238,6 +271,7 @@ function cleanupGame() {
 }
 
 function startGame(gameType, startLevel = GAME_CONFIG.DEFAULT_STARTING_LEVEL) {
+    console.log('Starting singleplayer game with level:', startLevel);
     cleanupGame();
 
     // Initialize canvases for singleplayer
@@ -246,10 +280,20 @@ function startGame(gameType, startLevel = GAME_CONFIG.DEFAULT_STARTING_LEVEL) {
         alert('Failed to initialize game. Please refresh the page and try again.');
         return;
     }
+    
+    console.log('Canvas initialization successful:', {
+        canvas: !!canvas,
+        ctx: !!ctx,
+        nextPieceCanvas: !!nextPieceCanvas,
+        nextPieceCtx: !!nextPieceCtx,
+        holdPieceCanvas: !!holdPieceCanvas,
+        holdPieceCtx: !!holdPieceCtx
+    });
 
     const protocol = window.location.protocol === 'https' ? 'wss' : 'ws';
     const wsURL = `${protocol}://${window.location.host}/ws/game`;
 
+    console.log('Connecting to:', wsURL);
     ws = new WebSocket(wsURL);
 
     ws.onopen = () => {
@@ -445,6 +489,13 @@ function handleMultiplayerKeyPress(event) {
 }
 
 function renderGame(state) {
+    console.log('renderGame called with state:', state);
+    
+    if (!canvas || !ctx) {
+        console.error('Canvas or context not available for rendering:', { canvas: !!canvas, ctx: !!ctx });
+        return;
+    }
+    
     ctx.fillStyle = '#000';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
@@ -569,7 +620,7 @@ function showGameOverScreen(finalScore, stats = null) {
                     <div>Singles: ${stats.lineStats[0]}</div>
                     <div>Doubles: ${stats.lineStats[1]}</div>
                     <div>Triples: ${stats.lineStats[2]}</div>
-                    <div>Tetris: ${stats.lineStats[3]}</div>
+                    <div>Notris: ${stats.lineStats[3]}</div>
                 </div>
             </div>
         `;
