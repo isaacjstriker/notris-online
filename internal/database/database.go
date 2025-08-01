@@ -218,8 +218,8 @@ func (db *DB) QueryRow(query string, args ...interface{}) *sql.Row {
 
 func (db *DB) CreateUser(username, passwordHash string) (*User, error) {
 	query := `
-		INSERT INTO users (username, password_hash)
-		VALUES ($1, $2)
+		INSERT INTO users (username, email, password_hash)
+		VALUES ($1, NULL, $2)
 		RETURNING id, created_at
 	`
 	var user User
