@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+	"github.com/isaacjstriker/devware/games/tetris"
 	"github.com/isaacjstriker/devware/internal/database"
 )
 
@@ -45,30 +46,42 @@ type UserInfo struct {
 // JWTValidator is a function type for validating JWT tokens
 type JWTValidator func(tokenString string) (*UserInfo, error)
 
+// MultiplayerGame represents an active multiplayer game session
+type MultiplayerGame struct {
+	RoomID     string
+	Players    map[int]*tetris.Tetris // UserID -> Game instance
+	StartTime  time.Time
+	IsActive   bool
+	GameTicker *time.Ticker
+	mutex      sync.RWMutex
+}
+
 // Hub maintains active clients and broadcasts messages
 type Hub struct {
-	clients     map[*Client]bool
-	rooms       map[string]map[*Client]bool
-	broadcast   chan WebSocketMessage
-	register    chan *Client
-	unregister  chan *Client
-	db          *database.DB
-	mutex       sync.RWMutex
-	stopCleanup chan bool
-	validateJWT JWTValidator
+	clients          map[*Client]bool
+	rooms            map[string]map[*Client]bool
+	multiplayerGames map[string]*MultiplayerGame // RoomID -> Game
+	broadcast        chan WebSocketMessage
+	register         chan *Client
+	unregister       chan *Client
+	db               *database.DB
+	mutex            sync.RWMutex
+	stopCleanup      chan bool
+	validateJWT      JWTValidator
 }
 
 // NewHub creates a new WebSocket hub
 func NewHub(db *database.DB, jwtValidator JWTValidator) *Hub {
 	return &Hub{
-		clients:     make(map[*Client]bool),
-		rooms:       make(map[string]map[*Client]bool),
-		broadcast:   make(chan WebSocketMessage),
-		register:    make(chan *Client),
-		unregister:  make(chan *Client),
-		db:          db,
-		stopCleanup: make(chan bool),
-		validateJWT: jwtValidator,
+		clients:          make(map[*Client]bool),
+		rooms:            make(map[string]map[*Client]bool),
+		multiplayerGames: make(map[string]*MultiplayerGame),
+		broadcast:        make(chan WebSocketMessage),
+		register:         make(chan *Client),
+		unregister:       make(chan *Client),
+		db:               db,
+		stopCleanup:      make(chan bool),
+		validateJWT:      jwtValidator,
 	}
 }
 
@@ -248,12 +261,72 @@ func (h *Hub) handleMessage(message WebSocketMessage) {
 		h.handlePlayerReady(message)
 	case "start_game":
 		h.handleStartGame(message)
+	case "start_multiplayer_game":
+		h.handleStartMultiplayerGame(message)
+	case "game_input":
+		h.handleGameInput(message)
 	case "player_finished":
 		h.handlePlayerFinished(message)
 	case "spectate_request":
 		h.handleSpectateRequest(message)
+	case "multiplayerInit":
+		h.handleMultiplayerInit(message)
+	case "setLevel":
+		h.handleSetLevel(message)
+	case "player_disconnect":
+		h.handlePlayerDisconnectMessage(message)
+	case "heartbeat":
+		// Handle heartbeat - no action needed, just confirms connection
+		log.Printf("Heartbeat received from user %d in room %s", message.UserID, message.RoomID)
 	default:
 		log.Printf("Unknown message type: %s", message.Type)
+	}
+
+}
+
+// handleSetLevel broadcasts a level change to all clients in the room
+func (h *Hub) handleSetLevel(message WebSocketMessage) {
+	if message.RoomID == "" {
+		return
+	}
+	// Broadcast the setLevel event to all clients
+	h.broadcastToRoom(message.RoomID, WebSocketMessage{
+		Type:   "setLevel",
+		RoomID: message.RoomID,
+		Data:   message.Data,
+	})
+}
+
+// handleMultiplayerInit sets the starting level for the room if provided
+func (h *Hub) handleMultiplayerInit(message WebSocketMessage) {
+	if message.RoomID == "" {
+		return
+	}
+	startingLevel := 1
+	if message.Data != nil {
+		if lvl, ok := message.Data["startingLevel"]; ok {
+			switch v := lvl.(type) {
+			case float64:
+				startingLevel = int(v)
+			case int:
+				startingLevel = v
+			}
+		}
+	}
+	// Update the room's settings in the database
+	room, err := h.db.GetMultiplayerRoom(message.RoomID)
+	if err != nil {
+		log.Printf("Failed to get room for multiplayerInit: %v", err)
+		return
+	}
+	if room.Settings == nil {
+		room.Settings = make(map[string]interface{})
+	}
+	room.Settings["starting_level"] = startingLevel
+	if err := h.db.UpdateRoomSettings(message.RoomID, room.Settings); err != nil {
+		log.Printf("Failed to update room settings for starting level: %v", err)
+	} else {
+		log.Printf("Set starting level for room %s to %d", message.RoomID, startingLevel)
 	}
 }
 
@@ -282,6 +355,257 @@ func (h *Hub) handleGameState(message WebSocketMessage) {
 		UserID: message.UserID,
 		Data:   message.Data,
 	})
+}
+
+// handleStartMultiplayerGame starts actual gameplay for all players in the room
+func (h *Hub) handleStartMultiplayerGame(message WebSocketMessage) {
+	if message.RoomID == "" {
+		log.Printf("No room ID provided for start_multiplayer_game")
+		return
+	}
+
+	log.Printf("Starting multiplayer game for room: %s", message.RoomID)
+
+	// Get room details to determine starting level
+	room, err := h.db.GetMultiplayerRoom(message.RoomID)
+	if err != nil {
+		log.Printf("Failed to get room for game start: %v", err)
+		return
+	}
+
+	startingLevel := 1
+	if room.Settings != nil {
+		if level, ok := room.Settings["starting_level"]; ok {
+			if lvl, ok := level.(float64); ok {
+				startingLevel = int(lvl)
+			}
+		}
+	}
+
+	// Create multiplayer game session
+	h.mutex.Lock()
+	multiplayerGame := &MultiplayerGame{
+		RoomID:    message.RoomID,
+		Players:   make(map[int]*tetris.Tetris),
+		StartTime: time.Now(),
+		IsActive:  true,
+	}
+
+	// Create individual Tetris instances for each player in the room
+	for _, player := range room.Players {
+		tetrisGame := tetris.NewTetris()
+		tetrisGame.SetLevel(startingLevel)
+		multiplayerGame.Players[player.UserID] = tetrisGame
+		log.Printf("Created Tetris instance for player %d (%s) with starting level %d",
+			player.UserID, player.Username, startingLevel)
+	}
+
+	h.multiplayerGames[message.RoomID] = multiplayerGame
+	h.mutex.Unlock()
+
+	// Update room status to active in database
+	err = h.db.UpdateRoomStatus(message.RoomID, "active")
+	if err != nil {
+		log.Printf("Failed to update room status to active: %v", err)
+	} else {
+		log.Printf("Room %s status updated to active", message.RoomID)
+	}
+
+	// Start the game tick for this multiplayer session
+	h.startMultiplayerGameTick(message.RoomID)
+
+	// Broadcast game start message to all players in the room
+	h.broadcastToRoom(message.RoomID, WebSocketMessage{
+		Type:   "multiplayer_game_started",
+		RoomID: message.RoomID,
+		Data: map[string]interface{}{
+			"starting_level": startingLevel,
+			"message":        "Game starting! Use arrow keys to play.",
+		},
+	})
+
+	log.Printf("Multiplayer game started for room %s with %d players", message.RoomID, len(multiplayerGame.Players))
+}
+
+// startMultiplayerGameTick starts the game loop for a multiplayer game
+func (h *Hub) startMultiplayerGameTick(roomID string) {
+	go func() {
+		ticker := time.NewTicker(50 * time.Millisecond) // 20 FPS game loop
+		defer ticker.Stop()
+
+		for range ticker.C {
+			h.mutex.RLock()
+			multiplayerGame, exists := h.multiplayerGames[roomID]
+			h.mutex.RUnlock()
+
+			if !exists || !multiplayerGame.IsActive {
+				log.Printf("Stopping game tick for room %s (game ended or removed)", roomID)
+				return
+			}
+
+			multiplayerGame.mutex.Lock()
+			// Update each player's game and broadcast their state
+			for userID, tetrisGame := range multiplayerGame.Players {
+				if !tetrisGame.IsGameOver() {
+					tetrisGame.Update()
+
+					// Broadcast this player's game state to all players in the room
+					gameState := tetrisGame.GetState()
+					h.broadcastToRoom(roomID, WebSocketMessage{
+						Type:   "player_game_state",
+						RoomID: roomID,
+						UserID: userID,
+						Data: map[string]interface{}{
+							"board":      gameState.Board,
+							"score":      gameState.Score,
+							"level":      gameState.Level,
+							"lines":      gameState.Lines,
+							"gameOver":   gameState.GameOver,
+							"paused":     gameState.Paused,
+							"nextPiece":  gameState.NextPiece,
+							"holdPiece":  gameState.HoldPiece,
+							"ghostPiece": gameState.GhostPiece,
+							"userID":     userID,
+						},
+					})
+				}
+			}
+			multiplayerGame.mutex.Unlock()
+
+			// Check if any player finished and handle game completion
+			h.checkMultiplayerGameCompletion(roomID)
+		}
+	}()
+}
+
+// checkMultiplayerGameCompletion checks if the multiplayer game should end
+func (h *Hub) checkMultiplayerGameCompletion(roomID string) {
+	h.mutex.RLock()
+	multiplayerGame, exists := h.multiplayerGames[roomID]
+	h.mutex.RUnlock()
+
+	if !exists || !multiplayerGame.IsActive {
+		return
+	}
+
+	multiplayerGame.mutex.RLock()
+	finishedPlayers := 0
+	totalPlayers := len(multiplayerGame.Players)
+
+	for _, tetrisGame := range multiplayerGame.Players {
+		if tetrisGame.IsGameOver() {
+			finishedPlayers++
+		}
+	}
+	multiplayerGame.mutex.RUnlock()
+
+	// End the game when at least one player finishes (traditional Tetris multiplayer)
+	if finishedPlayers > 0 {
+		log.Printf("Ending multiplayer game in room %s (%d/%d players finished)",
+			roomID, finishedPlayers, totalPlayers)
+		h.endMultiplayerGame(roomID)
+	}
+}
+
+// endMultiplayerGame ends a multiplayer game session
+func (h *Hub) endMultiplayerGame(roomID string) {
+	h.mutex.Lock()
+	multiplayerGame, exists := h.multiplayerGames[roomID]
+	if !exists {
+		h.mutex.Unlock()
+		return
+	}
+
+	multiplayerGame.IsActive = false
+	if multiplayerGame.GameTicker != nil {
+		multiplayerGame.GameTicker.Stop()
+	}
+	delete(h.multiplayerGames, roomID)
+	h.mutex.Unlock()
+
+	// Update room status back to waiting
+	err := h.db.UpdateRoomStatus(roomID, "waiting")
+	if err != nil {
+		log.Printf("Failed to update room status to waiting: %v", err)
+	}
+
+	// Send final results to all players
+	h.broadcastToRoom(roomID, WebSocketMessage{
+		Type:   "multiplayer_game_ended",
+		RoomID: roomID,
+		Data: map[string]interface{}{
+			"message": "Game ended! Thank you for playing.",
+		},
+	})
+
+	log.Printf("Multiplayer game ended for room %s", roomID)
+}
+
+// handleGameInput processes game input from players and broadcasts state changes
+func (h *Hub) handleGameInput(message WebSocketMessage) {
+	if message.RoomID == "" || message.UserID == 0 {
+		log.Printf("Invalid game input: missing room ID or user ID")
+		return
+	}
+
+	// Get the action from the message data
+	action, ok := message.Data["action"].(string)
+	if !ok {
+		log.Printf("Invalid game input: no action specified")
+		return
+	}
+
+	log.Printf("Game input from user %d in room %s: %s", message.UserID, message.RoomID, action)
+
+	// Get the multiplayer game instance
+	h.mutex.RLock()
+	multiplayerGame, exists := h.multiplayerGames[message.RoomID]
+	h.mutex.RUnlock()
+
+	if !exists {
+		log.Printf("No active multiplayer game found for room %s", message.RoomID)
+		return
+	}
+
+	// Get the player's game instance
+	multiplayerGame.mutex.Lock()
+	tetrisGame, playerExists := multiplayerGame.Players[message.UserID]
+	if !playerExists {
+		multiplayerGame.mutex.Unlock()
+		log.Printf("Player %d not found in game for room %s", message.UserID, message.RoomID)
+		return
+	}
+
+	// Process the input through the Tetris game engine
+	if !tetrisGame.IsGameOver() {
+		tetrisGame.HandleWebInput(action)
+
+		// Get the updated game state
+		gameState := tetrisGame.GetState()
+
+		// Broadcast this player's updated game state to all players in the room
+		h.broadcastToRoom(message.RoomID, WebSocketMessage{
+			Type:   "player_game_state",
+			RoomID: message.RoomID,
+			UserID: message.UserID,
+			Data: map[string]interface{}{
+				"board":      gameState.Board,
+				"score":      gameState.Score,
+				"level":      gameState.Level,
+				"lines":      gameState.Lines,
+				"gameOver":   gameState.GameOver,
+				"paused":     gameState.Paused,
+				"nextPiece":  gameState.NextPiece,
+				"holdPiece":  gameState.HoldPiece,
+				"ghostPiece": gameState.GhostPiece,
+				"userID":     message.UserID,
+			},
+		})
+
+		log.Printf("Processed input '%s' for player %d, new score: %d",
+			action, message.UserID, gameState.Score)
+	}
+	multiplayerGame.mutex.Unlock()
 }
 
 // handlePlayerReady sets player ready status
@@ -446,15 +770,8 @@ func (h *Hub) calculatePlayerPosition(roomID string, score int) (int, error) {
 	return h.db.CalculatePlayerPosition(roomID, score)
 }
 
-// checkGameCompletion checks if all players have finished and handles final results
+// checkGameCompletion checks if any player has finished and ends the game immediately
 func (h *Hub) checkGameCompletion(roomID string) {
-	// Get room info to check total players
-	room, err := h.db.GetMultiplayerRoom(roomID)
-	if err != nil {
-		log.Printf("Failed to get room for completion check: %v", err)
-		return
-	}
-
 	// Count finished players
 	finishedCount, err := h.db.GetFinishedPlayerCount(roomID)
 	if err != nil {
@@ -462,11 +779,43 @@ func (h *Hub) checkGameCompletion(roomID string) {
 		return
 	}
 
-	totalPlayers := len(room.Players)
+	// In multiplayer Tetris, when one player finishes (gets game over), the match ends for everyone
+	if finishedCount >= 1 {
+		log.Printf("Player finished in room %s, ending match for all players", roomID)
 
-	// If all players have finished, send final results
-	if finishedCount >= totalPlayers {
+		// Mark remaining active players as finished with their current scores
+		h.finishRemainingPlayers(roomID)
+
+		// Send final results
 		h.sendFinalResults(roomID)
+	}
+}
+
+// finishRemainingPlayers marks all remaining active players as finished
+func (h *Hub) finishRemainingPlayers(roomID string) {
+	// Get all players in the room
+	players, err := h.db.GetRoomPlayers(roomID)
+	if err != nil {
+		log.Printf("Failed to get room players for finishing: %v", err)
+		return
+	}
+
+	for _, player := range players {
+		// If player hasn't finished yet, mark them as finished
+		if player.Status != "finished" {
+			// Calculate their position (they get last place since they didn't finish naturally)
+			position, err := h.db.CalculatePlayerPosition(roomID, player.Score)
+			if err != nil {
+				position = len(players) // Default to last position
+			}
+
+			err = h.db.FinishPlayerGame(roomID, player.UserID, player.Score, position)
+			if err != nil {
+				log.Printf("Failed to finish remaining player %d: %v", player.UserID, err)
+			} else {
+				log.Printf("Marked player %s as finished due to match end", player.Username)
+			}
+		}
 	}
 }
 
@@ -545,8 +894,30 @@ func (h *Hub) handlePlayerDisconnection(userID int, roomID string) {
 	activeClients := len(h.rooms[roomID])
 	h.mutex.RUnlock()
 
-	if activeClients > 0 {
-		// Start disconnection timer (30 seconds to reconnect)
+	// Check if this is a multiplayer game session
+	h.mutex.RLock()
+	multiplayerGame, isMultiplayerGame := h.multiplayerGames[roomID]
+	h.mutex.RUnlock()
+
+	if isMultiplayerGame && multiplayerGame.IsActive {
+		// For multiplayer games, immediately end the game when a player disconnects
+		log.Printf("Player %s disconnected from active multiplayer game in room %s, ending game", username, roomID)
+
+		// End the multiplayer game immediately
+		h.endMultiplayerGame(roomID)
+
+		// Notify remaining players that the match ended due to disconnection
+		h.broadcastToRoom(roomID, WebSocketMessage{
+			Type:   "match_ended",
+			RoomID: roomID,
+			Data: map[string]interface{}{
+				"reason":     "player_disconnected",
+				"message":    fmt.Sprintf("Match ended because %s disconnected", username),
+				"playerName": username,
+			},
+		})
+	} else if activeClients > 0 {
+		// For non-multiplayer games, start disconnection timer (30 seconds to reconnect)
 		go h.startDisconnectionTimer(userID, roomID, username, 30*time.Second)
 	}
 }
@@ -645,6 +1016,25 @@ func (h *Hub) checkReconnection(userID int, roomID string) {
 			}
 		}
 	}
+}
+
+// handlePlayerDisconnectMessage handles explicit disconnect messages from clients
+func (h *Hub) handlePlayerDisconnectMessage(message WebSocketMessage) {
+	userID := message.UserID
+	roomID := message.RoomID
+
+	// Extract reason from message data
+	reason := "user_initiated"
+	if message.Data != nil {
+		if r, ok := message.Data["reason"].(string); ok {
+			reason = r
+		}
+	}
+
+	log.Printf("Received explicit disconnect message from user %d in room %s, reason: %s", userID, roomID, reason)
+
+	// Call the existing disconnect handling logic
+	h.handlePlayerDisconnection(userID, roomID)
 }
 
 // handleSpectateRequest handles requests to spectate an ongoing game
@@ -765,6 +1155,47 @@ func (h *Hub) broadcastToRoom(roomID string, message WebSocketMessage) {
 			h.mutex.Unlock()
 		}
 	}
+}
+
+// NotifyPlayerLeft notifies other players that someone left during an active game
+func (h *Hub) NotifyPlayerLeft(roomID string, userID int, username string) {
+	log.Printf("Notifying room %s that player %s left during active game", roomID, username)
+
+	// Broadcast to all players in the room that the match has ended due to a player leaving
+	h.broadcastToRoom(roomID, WebSocketMessage{
+		Type:   "match_ended",
+		RoomID: roomID,
+		Data: map[string]interface{}{
+			"reason":     "player_left",
+			"playerName": username,
+			"message":    fmt.Sprintf("Match ended: %s left the game", username),
+		},
+	})
+}
+
+// NotifyPlayerLeftWaiting notifies other players that someone left a waiting room
+func (h *Hub) NotifyPlayerLeftWaiting(roomID string, userID int, username string) {
+	log.Printf("Notifying room %s that player %s left waiting room", roomID, username)
+
+	// Get updated room info to send to remaining players
+	room, err := h.db.GetMultiplayerRoom(roomID)
+	if err != nil {
+		log.Printf("Failed to get room after player left: %v", err)
+		return
+	}
+
+	// Broadcast room update to remaining players
+	h.broadcastToRoom(roomID, WebSocketMessage{
+		Type:   "room_update",
+		RoomID: roomID,
+		Data: map[string]interface{}{
+			"room": room,
+			"playerLeft": map[string]interface{}{
+				"playerName": username,
+				"message":    fmt.Sprintf("%s left the room", username),
+			},
+		},
+	})
 }
 
 // ServeWS handles WebSocket requests

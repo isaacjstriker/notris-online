@@ -72,38 +72,30 @@ type Piece struct {
 	pieceType int
 }
 
-// Tetris pieces (7 standard pieces)
 var pieces = [][][]int{
-	// I-piece
 	{
 		{1, 1, 1, 1},
 	},
-	// O-piece
 	{
 		{1, 1},
 		{1, 1},
 	},
-	// T-piece
 	{
 		{0, 1, 0},
 		{1, 1, 1},
 	},
-	// S-piece
 	{
 		{0, 1, 1},
 		{1, 1, 0},
 	},
-	// Z-piece
 	{
 		{1, 1, 0},
 		{0, 1, 1},
 	},
-	// J-piece
 	{
 		{1, 0, 0},
 		{1, 1, 1},
 	},
-	// L-piece
 	{
 		{0, 0, 1},
 		{1, 1, 1},
@@ -112,25 +104,24 @@ var pieces = [][][]int{
 
 var pieceColors = []string{"##", "@@", "**", "%%", "&&", "++", "=="}
 
-// NewTetris creates a new Tetris game
 func NewTetris() *Tetris {
 	t := &Tetris{
 		board:         make([][]int, BoardHeight),
 		score:         0,
 		lines:         0,
 		level:         1,
-		startingLevel: 1,
-		dropCounter:   0,
+		gameOver:      false,
 		startTime:     time.Now(),
+		pausedTime:    0,
+		lastPauseTime: time.Now(),
 		piecesPlaced:  0,
+		holdUsed:      false,
 	}
 
-	// Initialize board
 	for i := range t.board {
 		t.board[i] = make([]int, BoardWidth)
 	}
 
-	// Set initial drop speed based on level 1
 	t.dropSpeed = t.getFramesPerDrop()
 
 	t.spawnPiece()
@@ -157,16 +148,13 @@ func (t *Tetris) spawnPiece() {
 		}
 	}
 
-	// Reset hold usage for the new piece
 	t.holdUsed = false
 
-	// Check game over
 	if t.checkCollision(t.currentPiece, 0, 0) {
 		t.gameOver = true
 	}
 }
 
-// spawnNextPiece creates the next piece for preview
 func (t *Tetris) spawnNextPiece() {
 	pieceType := rand.Intn(len(pieces))
 	t.nextPiece = &Piece{
@@ -178,16 +166,13 @@ func (t *Tetris) spawnNextPiece() {
 	}
 }
 
-// GetState returns the current state of the game for JSON serialization.
 func (t *Tetris) GetState() GameState {
-	// Create a copy of the board to draw the current piece on
 	boardCopy := make([][]int, BoardHeight)
 	for i := range t.board {
 		boardCopy[i] = make([]int, BoardWidth)
 		copy(boardCopy[i], t.board[i])
 	}
 
-	// Draw the current piece onto the board copy
 	if t.currentPiece != nil {
 		for py := 0; py < len(t.currentPiece.shape); py++ {
 			for px := 0; px < len(t.currentPiece.shape[py]); px++ {
@@ -212,10 +197,8 @@ func (t *Tetris) GetState() GameState {
 		holdPieceShape = t.holdPiece.shape
 	}
 
-	// Calculate ghost piece position
 	ghostShape, ghostX, ghostY := t.calculateGhostPiece()
 
-	// Calculate statistics
 	totalElapsed := time.Since(t.startTime)
 	currentPauseTime := time.Duration(0)
 	if t.paused && !t.lastPauseTime.IsZero() {

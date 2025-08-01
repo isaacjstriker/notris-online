@@ -44,23 +44,17 @@ func NewAPIServer(cfg *config.Config, db *database.DB) *APIServer {
 	return server
 }
 
-// Start runs the HTTP server
 func (s *APIServer) Start() {
 	router := http.NewServeMux()
 
-	// --- Frontend Routes ---
-	// Create a sub-filesystem for the static files
 	staticFS, err := fs.Sub(web.Files, "static")
 	if err != nil {
 		log.Fatalf("could not create static filesystem: %v", err)
 	}
-	// Serve static files from the embedded filesystem
 	router.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.FS(staticFS))))
 
-	// Serve the main HTML file from the embedded filesystem
 	router.HandleFunc("/", s.handleIndex)
 
-	// --- API Routes ---
 	router.HandleFunc("POST /api/register", s.handleRegister)
 	router.HandleFunc("POST /api/login", s.handleLogin)
 	router.HandleFunc("POST /api/logout", s.handleLogout)
@@ -68,7 +62,6 @@ func (s *APIServer) Start() {
 	router.HandleFunc("GET /api/recent/{gameType}", s.handleGetRecentGames)
 	router.HandleFunc("POST /api/scores", s.handleSubmitScore)
 
-	// --- Multiplayer API Routes ---
 	router.HandleFunc("POST /api/rooms", requireAuth(s, s.handleCreateRoom))
 	router.HandleFunc("GET /api/rooms/{gameType}", s.handleGetAvailableRooms)
 	router.HandleFunc("GET /api/room/{roomId}", s.handleGetRoom)
@@ -76,7 +69,6 @@ func (s *APIServer) Start() {
 	router.HandleFunc("POST /api/room/{roomId}/leave", requireAuth(s, s.handleLeaveRoom))
 	router.HandleFunc("POST /api/room/{roomId}/ready", requireAuth(s, s.handlePlayerReady))
 
-	// --- WebSocket Routes ---
 	router.HandleFunc("GET /ws/room/{roomId}", s.handleWebSocket)
 	router.HandleFunc("GET /ws/game", s.handleGameConnection)
 

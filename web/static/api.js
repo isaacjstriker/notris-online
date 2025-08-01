@@ -1,5 +1,3 @@
-// This file will contain functions for making API calls to the backend.
-
 const API_BASE_URL = '/api';
 
 async function apiRequest(method, path, body = null) {
@@ -32,8 +30,6 @@ async function apiRequest(method, path, body = null) {
     }
 }
 
-// --- API Functions ---
-
 function registerUser(username, email, password) {
     return apiRequest('POST', '/register', { username, email, password });
 }
@@ -60,12 +56,10 @@ function getRecentGames(gameType, limit = 10) {
     return apiRequest('GET', `/recent/${gameType}?limit=${limit}`);
 }
 
-// Submit a game score
 function submitScore(gameType, score, metadata = {}) {
     return apiRequest('POST', '/scores', { game_type: gameType, score, metadata });
 }
 
-// Alias for multiplayer compatibility
 function apiCall(path, method, body = null) {
     console.log(`apiCall: ${method} ${path}`, body);
     return apiRequest(method, path, body);

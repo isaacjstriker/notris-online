@@ -19,9 +19,9 @@ type LoginRequest struct {
 type LoginResponse struct {
 	Token    string `json:"token"`
 	Username string `json:"username"`
+	UserID   int    `json:"user_id"`
 }
 
-// handleLogin handles user login and JWT generation
 func (s *APIServer) handleLogin(w http.ResponseWriter, r *http.Request) {
 	var req LoginRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -29,20 +29,17 @@ func (s *APIServer) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Fetch user from database
 	user, passwordHash, err := s.db.GetUserByUsername(req.Username)
 	if err != nil {
 		permissionDenied(w)
 		return
 	}
 
-	// Check password
 	if !auth.CheckPassword(req.Password, passwordHash) {
 		permissionDenied(w)
 		return
 	}
 
-	// Create JWT
 	token, err := createJWT(user.ID, user.Username, s.config.JWTSecret)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, apiError{Error: "failed to create token"})
@@ -52,6 +49,7 @@ func (s *APIServer) handleLogin(w http.ResponseWriter, r *http.Request) {
 	resp := LoginResponse{
 		Token:    token,
 		Username: user.Username,
+		UserID:   user.ID,
 	}
 
 	writeJSON(w, http.StatusOK, resp)
@@ -77,7 +75,6 @@ type UserInfo struct {
 	Username string `json:"username"`
 }
 
-// validateJWT validates a JWT token and returns user information
 func (s *APIServer) validateJWT(tokenString string) (*UserInfo, error) {
 	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {

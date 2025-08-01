@@ -1073,6 +1073,20 @@ func (db *DB) UpdatePlayerStatus(roomID string, userID int, status string) error
 	return nil
 }
 
+// UpdateRoomSettings updates the settings for a multiplayer room
+func (db *DB) UpdateRoomSettings(roomID string, settings map[string]interface{}) error {
+	settingsJSON, err := json.Marshal(settings)
+	if err != nil {
+		return fmt.Errorf("failed to marshal settings: %w", err)
+	}
+	query := `UPDATE multiplayer_rooms SET settings = $1 WHERE id = $2`
+	_, err = db.conn.Exec(query, settingsJSON, roomID)
+	if err != nil {
+		return fmt.Errorf("failed to update room settings: %w", err)
+	}
+	return nil
+}
+
 // Close closes the database connection
 func (db *DB) Close() error {
 	return db.conn.Close()

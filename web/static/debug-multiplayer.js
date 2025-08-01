@@ -1,7 +1,3 @@
-// Multiplayer Debug Helper
-// Open browser console and run these commands to debug multiplayer issues
-
-// Check WebSocket connection status
 function checkWebSocketStatus() {
     if (window.multiplayerManager && window.multiplayerManager.ws) {
         const ws = window.multiplayerManager.ws;
@@ -22,7 +18,6 @@ function checkWebSocketStatus() {
     }
 }
 
-// Send test ready message
 function testReady(isReady = true) {
     if (window.multiplayerManager && window.multiplayerManager.ws) {
         const message = {
@@ -37,7 +32,6 @@ function testReady(isReady = true) {
     }
 }
 
-// Check current room state
 function checkRoomState() {
     if (window.multiplayerManager && window.multiplayerManager.currentRoom) {
         const room = window.multiplayerManager.currentRoom;
@@ -58,7 +52,6 @@ function checkRoomState() {
     }
 }
 
-// Check authentication
 function checkAuth() {
     const token = localStorage.getItem('devware_jwt');
     const username = localStorage.getItem('devware_username');
@@ -70,7 +63,6 @@ function checkAuth() {
     return { token, username };
 }
 
-// Monitor WebSocket messages
 function monitorWebSocket(enable = true) {
     if (!window.multiplayerManager || !window.multiplayerManager.ws) {
         console.log('No WebSocket to monitor');
@@ -94,7 +86,6 @@ function monitorWebSocket(enable = true) {
     }
 }
 
-// Quick test sequence
 function runQuickTest() {
     console.log('=== Multiplayer Quick Test ===');
     checkAuth();
@@ -110,7 +101,6 @@ function runQuickTest() {
     }
 }
 
-// Export to window for easy access
 window.debugMultiplayer = {
     checkWebSocketStatus,
     testReady,

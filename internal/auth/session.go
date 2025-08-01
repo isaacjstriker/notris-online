@@ -7,32 +7,25 @@ import (
 	"os"
 )
 
-// Session represents a user session
 type Session struct {
 	UserID   int    `json:"user_id"`
 	Username string `json:"username"`
 	Email    string `json:"email"`
 }
 
-// SessionManager handles user sessions
 type SessionManager struct {
 	sessionFile string
 	current     *Session
 }
 
-// NewSessionManager creates a new session manager
 func NewSessionManager() *SessionManager {
 	sm := &SessionManager{}
-	// Try to load existing session and log if it fails
 	if err := sm.LoadSession(); err != nil {
-		// This is not a fatal error, just means no session was loaded.
-		// A log message is useful for debugging.
 		log.Printf("[DEBUG] No previous session found or failed to load: %v", err)
 	}
 	return sm
 }
 
-// SaveSession saves the current session to disk
 func (sm *SessionManager) SaveSession(userID int, username, email string) error {
 	sm.current = &Session{
 		UserID:   userID,
@@ -53,12 +46,11 @@ func (sm *SessionManager) SaveSession(userID int, username, email string) error 
 	return nil
 }
 
-// LoadSession loads a session from disk
 func (sm *SessionManager) LoadSession() error {
 	data, err := os.ReadFile(sm.sessionFile)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil // No session file exists, which is fine
+			return nil
 		}
 		return fmt.Errorf("failed to read session file: %w", err)
 	}
@@ -73,17 +65,14 @@ func (sm *SessionManager) LoadSession() error {
 	return nil
 }
 
-// GetCurrentSession returns the current session data
 func (sm *SessionManager) GetCurrentSession() *Session {
 	return sm.current
 }
 
-// IsLoggedIn returns true if a user is currently logged in
 func (sm *SessionManager) IsLoggedIn() bool {
 	return sm.current != nil
 }
 
-// ClearSession clears the current session
 func (sm *SessionManager) ClearSession() error {
 	sm.current = nil
 
@@ -97,7 +86,6 @@ func (sm *SessionManager) ClearSession() error {
 	return nil
 }
 
-// GetUserInfo returns formatted user information
 func (sm *SessionManager) GetUserInfo() string {
 	if sm.current == nil {
 		return "Not logged in"

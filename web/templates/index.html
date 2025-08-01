@@ -126,12 +126,86 @@
                 </div>
             </div>
 
+            <!-- Multiplayer Game View -->
+            <div id="multiplayer-game-view" class="hidden">
+                <div id="multiplayer-game-container">
+                    <!-- Player 1 (Local Player) -->
+                    <div class="player-game-section">
+                        <div class="player-header">
+                            <h3 id="player1-name">You</h3>
+                            <div class="player-stats">
+                                <span>Score: <span id="player1-score">0</span></span>
+                                <span>Level: <span id="player1-level">1</span></span>
+                                <span>Lines: <span id="player1-lines">0</span></span>
+                            </div>
+                        </div>
+                        <div class="game-area">
+                            <div class="side-info">
+                                <div class="info-section">
+                                    <h4>Next</h4>
+                                    <canvas id="player1-next-canvas" width="80" height="60"></canvas>
+                                </div>
+                                <div class="info-section">
+                                    <h4>Hold</h4>
+                                    <canvas id="player1-hold-canvas" width="80" height="60"></canvas>
+                                </div>
+                            </div>
+                            <canvas id="player1-canvas" width="300" height="600"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- VS Indicator -->
+                    <div class="vs-indicator">
+                        <div class="vs-text">VS</div>
+                        <div class="match-info">
+                            <div id="match-timer">00:00</div>
+                            <button id="multiplayer-menu-btn" class="menu-btn">Menu</button>
+                        </div>
+                    </div>
+
+                    <!-- Player 2 (Opponent) -->
+                    <div class="player-game-section">
+                        <div class="player-header">
+                            <h3 id="player2-name">Opponent</h3>
+                            <div class="player-stats">
+                                <span>Score: <span id="player2-score">0</span></span>
+                                <span>Level: <span id="player2-level">1</span></span>
+                                <span>Lines: <span id="player2-lines">0</span></span>
+                            </div>
+                        </div>
+                        <div class="game-area">
+                            <canvas id="player2-canvas" width="300" height="600"></canvas>
+                            <div class="side-info">
+                                <div class="info-section">
+                                    <h4>Next</h4>
+                                    <canvas id="player2-next-canvas" width="80" height="60"></canvas>
+                                </div>
+                                <div class="info-section">
+                                    <h4>Hold</h4>
+                                    <canvas id="player2-hold-canvas" width="80" height="60"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Multiplayer Game Menu Overlay -->
+                <div id="multiplayer-game-menu-overlay" class="hidden">
+                    <div id="multiplayer-game-menu-content">
+                        <h2>Game Menu</h2>
+                        <button id="resume-multiplayer-game-btn" class="menu-btn">Resume Game</button>
+                        <button id="leave-multiplayer-game-btn" class="menu-btn">Leave Match</button>
+                        <button id="back-to-multiplayer-menu-btn" class="menu-btn">Back to Multiplayer</button>
+                    </div>
+                </div>
+            </div>
+
             <!-- Login View -->
             <div id="login-view" class="hidden">
                 <h2>Login</h2>
                 <form id="login-form">
-                    <input type="text" id="login-username" placeholder="Username" required>
-                    <input type="password" id="login-password" placeholder="Password" required>
+                    <input type="text" id="login-username" name="username" placeholder="Username" required>
+                    <input type="password" id="login-password" name="password" placeholder="Password" required>
                     <button type="submit">Login</button>
                     <p class="error-message" id="login-error"></p>
                     <button type="button" class="link-btn" id="show-register-btn">Don't have an account?
@@ -143,9 +217,11 @@
             <div id="register-view" class="hidden">
                 <h2>Register</h2>
                 <form id="register-form">
-                    <input type="text" id="register-username" placeholder="Username" required>
-                    <input type="email" id="register-email" placeholder="Email" required>
-                    <input type="password" id="register-password" placeholder="Password" required>
+                    <input type="text" id="register-username" name="username" placeholder="Username" required>
+                    <input type="email" id="register-email" name="email" placeholder="Email" required>
+                    <input type="password" id="register-password" name="password" placeholder="Password" required>
+                    <input type="password" id="register-confirm-password" name="confirmPassword"
+                        placeholder="Confirm Password" required>
                     <button type="submit">Register</button>
                     <p class="error-message" id="register-error"></p>
                     <button type="button" class="link-btn" id="show-login-btn">Already have an account? Login</button>
@@ -209,6 +285,20 @@
                             <input type="text" id="room-name" maxlength="50" required>
                         </div>
                         <div class="form-group">
+                            <label for="starting-level">Starting Level:</label>
+                            <select id="starting-level">
+                                <option value="1">1</option>
+                                <option value="2">2</option>
+                                <option value="3">3</option>
+                                <option value="4">4</option>
+                                <option value="5">5</option>
+                                <option value="6">6</option>
+                                <option value="7">7</option>
+                                <option value="8">8</option>
+                                <option value="9">9</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
                             <label>
                                 <input type="checkbox" id="private-room"> Private Room
                             </label>
@@ -246,11 +336,27 @@
         </main>
     </div>
 
+    <script type="module">
+        // Import and initialize modules
+        import { GAME_CONFIG, PIECE_COLORS, MESSAGE_TYPES } from '/static/config.js';
+        import { logger } from '/static/logger.js';
+        import { CanvasUtils, WebSocketUtils, DOMUtils, GameUtils, ValidationUtils } from '/static/utils.js';
+
+        // Make available globally for non-module scripts
+        window.GAME_CONFIG = GAME_CONFIG;
+        window.PIECE_COLORS = PIECE_COLORS;
+        window.MESSAGE_TYPES = MESSAGE_TYPES;
+        window.logger = logger;
+        window.CanvasUtils = CanvasUtils;
+        window.WebSocketUtils = WebSocketUtils;
+        window.DOMUtils = DOMUtils;
+        window.GameUtils = GameUtils;
+        window.ValidationUtils = ValidationUtils;
+    </script>
     <script src="/static/auth.js"></script>
     <script src="/static/api.js"></script>
     <script src="/static/game.js"></script>
     <script src="/static/multiplayer.js"></script>
-    <script src="/static/debug-multiplayer.js"></script>
     <script src="/static/main.js"></script>
 </body>
 

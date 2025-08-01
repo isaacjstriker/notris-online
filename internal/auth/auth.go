@@ -34,7 +34,6 @@ func ReadPassword(prompt string) (string, error) {
 	return string(bytePassword), nil
 }
 
-// HashPassword hashes a password using bcrypt
 func HashPassword(password string) (string, error) {
 	hashedBytes, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
@@ -43,13 +42,11 @@ func HashPassword(password string) (string, error) {
 	return string(hashedBytes), nil
 }
 
-// CheckPassword checks if a password matches the hash
 func CheckPassword(password, hash string) bool {
 	err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(password))
 	return err == nil
 }
 
-// ValidateUsername validates a username
 func ValidateUsername(username string) error {
 	if len(username) < 3 {
 		return fmt.Errorf("username must be at least 3 characters long")
@@ -58,7 +55,6 @@ func ValidateUsername(username string) error {
 		return fmt.Errorf("username must be no more than 50 characters long")
 	}
 
-	// Check if username contains only alphanumeric characters and underscores
 	matched, err := regexp.MatchString("^[a-zA-Z0-9_]+$", username)
 	if err != nil {
 		return err
@@ -70,13 +66,11 @@ func ValidateUsername(username string) error {
 	return nil
 }
 
-// ValidateEmail validates an email address
 func ValidateEmail(email string) error {
 	if len(email) == 0 {
 		return fmt.Errorf("email cannot be empty")
 	}
 
-	// Basic email validation
 	emailRegex := regexp.MustCompile(`^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`)
 	if !emailRegex.MatchString(email) {
 		return fmt.Errorf("invalid email format")

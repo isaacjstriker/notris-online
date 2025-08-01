@@ -138,9 +138,37 @@ func (s *APIServer) handleLeaveRoom(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Get room info before leaving to check status
+	room, err := s.db.GetMultiplayerRoom(roomID)
+	if err != nil {
+		writeJSON(w, http.StatusNotFound, apiError{Error: "room not found"})
+		return
+	}
+
+	// Leave the room in database
 	if err := s.db.LeaveMultiplayerRoom(roomID, user.UserID); err != nil {
 		writeJSON(w, http.StatusInternalServerError, apiError{Error: "failed to leave room"})
 		return
+	}
+
+	// If the room was actively playing, notify other players and end the match
+	if room.Status == "playing" || room.Status == "active" {
+		log.Printf("Player %s left active room %s, ending match", user.Username, roomID)
+
+		// Notify other players that the match has ended due to a player leaving
+		if s.wsHub != nil {
+			s.wsHub.NotifyPlayerLeft(roomID, user.UserID, user.Username)
+		}
+
+		// Update room status to finished
+		s.db.UpdateRoomStatus(roomID, "finished")
+	} else {
+		// If it was just a waiting room, notify other players of the leave
+		log.Printf("Player %s left waiting room %s", user.Username, roomID)
+
+		if s.wsHub != nil {
+			s.wsHub.NotifyPlayerLeftWaiting(roomID, user.UserID, user.Username)
+		}
 	}
 
 	writeJSON(w, http.StatusOK, map[string]string{"message": "left room successfully"})

@@ -6,9 +6,7 @@ import (
 	"time"
 )
 
-// CreateTestData creates sample data for testing and development
 func (db *DB) CreateTestData() error {
-	// Only create test data if no users exist
 	var userCount int
 	err := db.conn.QueryRow("SELECT COUNT(*) FROM users").Scan(&userCount)
 	if err != nil {
@@ -16,12 +14,11 @@ func (db *DB) CreateTestData() error {
 	}
 
 	if userCount > 0 {
-		return nil // Data already exists
+		return nil
 	}
 
 	fmt.Println("🎮 Creating sample data for testing...")
 
-	// Create test users
 	testUsers := []struct {
 		username string
 		email    string
@@ -49,7 +46,6 @@ func (db *DB) CreateTestData() error {
 		fmt.Printf("   ✅ Created user: %s (ID: %d)\n", user.username, userID)
 	}
 
-	// Create test scores for both typing and tetris games
 	testScores := []struct {
 		userID int
 		scores []struct {
@@ -109,7 +105,6 @@ func (db *DB) CreateTestData() error {
 
 	for _, userScore := range testScores {
 		for j, scoreData := range userScore.scores {
-			// PostgreSQL uses JSONB
 			metadataJSON, err := json.Marshal(scoreData.metadata)
 			if err != nil {
 				return fmt.Errorf("failed to marshal metadata: %w", err)
