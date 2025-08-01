@@ -74,7 +74,7 @@ async function handleRegister(event) {
     }
 
     try {
-        const response = await fetch('/api/auth/register', {
+        const response = await fetch('/api/register', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -90,7 +90,7 @@ async function handleRegister(event) {
         if (response.ok) {
             console.log('Registration successful, attempting login...');
 
-            const loginResponse = await fetch('/api/auth/login', {
+            const loginResponse = await fetch('/api/login', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

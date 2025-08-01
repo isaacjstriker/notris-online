@@ -35,7 +35,7 @@ function registerUser(username, email, password) {
 }
 
 function loginUser(username, password) {
-    return apiRequest('POST', '/login', { username, password });
+    return apiRequest('POST', '/api/login', { username, password });
 }
 
 function getLeaderboard(gameType, options = {}) {
