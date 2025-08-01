@@ -38,7 +38,8 @@ func (s *APIServer) handleRegister(w http.ResponseWriter, r *http.Request) {
 
 	user, err := s.db.CreateUser(req.Username, hashedPassword)
 	if err != nil {
-		log.Printf("Error creating user: %v", err)
+		log.Printf("Error creating user '%s': %v", req.Username, err)
+		log.Printf("Full error details: %+v", err)
 
 		if strings.Contains(err.Error(), "UNIQUE constraint failed") || strings.Contains(err.Error(), "duplicate key value violates unique constraint") {
 			writeJSON(w, http.StatusConflict, apiError{Error: "username already exists"})

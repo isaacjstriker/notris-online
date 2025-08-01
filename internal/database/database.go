@@ -130,7 +130,6 @@ func (db *DB) CreateTables() error {
 		`CREATE TABLE IF NOT EXISTS users (
 			id SERIAL PRIMARY KEY,
 			username VARCHAR(50) UNIQUE NOT NULL,
-			email VARCHAR(100) UNIQUE,
 			password_hash VARCHAR(255) NOT NULL,
 			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 			last_login TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -218,8 +217,8 @@ func (db *DB) QueryRow(query string, args ...interface{}) *sql.Row {
 
 func (db *DB) CreateUser(username, passwordHash string) (*User, error) {
 	query := `
-		INSERT INTO users (username, email, password_hash)
-		VALUES ($1, NULL, $2)
+		INSERT INTO users (username, password_hash)
+		VALUES ($1, $2)
 		RETURNING id, created_at
 	`
 	var user User
@@ -238,20 +237,21 @@ func (db *DB) CreateUser(username, passwordHash string) (*User, error) {
 
 func (db *DB) GetUserByUsername(username string) (*User, string, error) {
 	query := `
-		SELECT id, username, email, password_hash, created_at, last_login
+		SELECT id, username, password_hash, created_at, last_login
 		FROM users WHERE username = $1
 	`
 
 	var user User
 	var passwordHash string
 	err := db.conn.QueryRow(query, username).Scan(
-		&user.ID, &user.Username, &user.Email, &passwordHash,
+		&user.ID, &user.Username, &passwordHash,
 		&user.CreatedAt, &user.LastLogin,
 	)
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to get user: %w", err)
 	}
 
+	user.Email = "" // No email field in database
 	return &user, passwordHash, nil
 }
 
