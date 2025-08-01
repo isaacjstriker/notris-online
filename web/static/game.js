@@ -204,12 +204,12 @@ function initializeSingleplayerCanvases() {
     nextPieceCtx = nextPieceCanvas.getContext('2d');
     holdPieceCanvas = document.getElementById('hold-piece-canvas');
     holdPieceCtx = holdPieceCanvas.getContext('2d');
-    
+
     if (!canvas || !ctx || !nextPieceCanvas || !nextPieceCtx || !holdPieceCanvas || !holdPieceCtx) {
         console.error('Failed to initialize singleplayer canvases');
         return false;
     }
-    
+
     return true;
 }
 
