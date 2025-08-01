@@ -54,18 +54,12 @@ async function handleRegister(event) {
     const formData = new FormData(event.target);
     const userData = {
         username: formData.get('username'),
-        email: formData.get('email'),
         password: formData.get('password'),
         confirmPassword: formData.get('confirmPassword')
     };
 
     if (!userData.username || userData.username.length < 3) {
         errorEl.textContent = 'Username must be at least 3 characters long';
-        return;
-    }
-
-    if (!userData.email) {
-        errorEl.textContent = 'Email is required';
         return;
     }
 
@@ -80,14 +74,13 @@ async function handleRegister(event) {
     }
 
     try {
-        const response = await fetch('/api/register', {
+        const response = await fetch('/api/auth/register', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify({
                 username: userData.username,
-                email: userData.email,
                 password: userData.password
             }),
         });
@@ -97,7 +90,7 @@ async function handleRegister(event) {
         if (response.ok) {
             console.log('Registration successful, attempting login...');
 
-            const loginResponse = await fetch('/api/login', {
+            const loginResponse = await fetch('/api/auth/login', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
