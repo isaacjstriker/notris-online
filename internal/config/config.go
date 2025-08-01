@@ -31,8 +31,8 @@ func Load() (*Config, error) {
 		DatabaseURL: os.Getenv("DATABASE_URL"),
 		AppName:     getEnv("APP_NAME", "Dev Ware"),
 		Debug:       getEnvAsBool("DEBUG", false),
-		ServerPort:  getEnvAsInt("SERVER_PORT", 8080),
-		ServerHost:  getEnv("SERVER_HOST", "localhost"),
+		ServerPort:  getPort(),
+		ServerHost:  getEnv("SERVER_HOST", "0.0.0.0"),
 		JWTSecret:   os.Getenv("JWT_SECRET"),
 	}
 
@@ -102,4 +102,13 @@ func getEnvAsInt(key string, defaultValue int) int {
 		}
 	}
 	return defaultValue
+}
+
+func getPort() int {
+	if port := os.Getenv("PORT"); port != "" {
+		if parsed, err := strconv.Atoi(port); err == nil {
+			return parsed
+		}
+	}
+	return getEnvAsInt("SERVER_PORT", 8080)
 }
