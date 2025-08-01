@@ -354,21 +354,29 @@ func (db *DB) GetFilteredLeaderboard(gameType string, limit int, filter Leaderbo
 	}
 
 	userFilter := ""
+	args := []interface{}{gameType}
+	argCount := 1
+
 	if filter.UserID != nil {
-		userFilter = fmt.Sprintf("AND u.id = %d", *filter.UserID)
+		argCount++
+		userFilter = fmt.Sprintf("AND u.id = $%d", argCount)
+		args = append(args, *filter.UserID)
 	}
 
-	query := fmt.Sprintf(`
-        SELECT %s
+	argCount++
+	limitPlaceholder := fmt.Sprintf("$%d", argCount)
+	args = append(args, limit)
+
+	// Build the query with safe string concatenation (not user input)
+	query := "SELECT " + selectFields + `
         FROM users u
         JOIN game_scores gs ON u.id = gs.user_id
-        WHERE gs.game_type = $1 %s %s
+        WHERE gs.game_type = $1 ` + timeCondition + ` ` + userFilter + `
         GROUP BY u.id, u.username
-        ORDER BY %s
-        LIMIT $2
-    `, selectFields, timeCondition, userFilter, orderBy)
+        ORDER BY ` + orderBy + `
+        LIMIT ` + limitPlaceholder
 
-	rows, err := db.conn.Query(query, gameType, limit)
+	rows, err := db.conn.Query(query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get leaderboard: %w", err)
 	}
@@ -713,7 +721,9 @@ func (db *DB) LeaveMultiplayerRoom(roomID string, userID int) error {
 	err = db.conn.QueryRow(countQuery, roomID).Scan(&playerCount)
 	if err == nil && playerCount == 0 {
 		deleteQuery := `DELETE FROM multiplayer_rooms WHERE id = $1`
-		db.conn.Exec(deleteQuery, roomID)
+		if _, err := db.conn.Exec(deleteQuery, roomID); err != nil {
+			log.Printf("Error deleting empty room %s: %v", roomID, err)
+		}
 	}
 
 	return nil

@@ -1,10 +1,24 @@
 package tetris
 
 import (
-	"math/rand"
+	"crypto/rand"
+	"math/big"
 	"os"
 	"time"
 )
+
+// secureRandIntn generates a cryptographically secure random number in range [0, n)
+func secureRandIntn(n int) int {
+	if n <= 0 {
+		return 0
+	}
+	result, err := rand.Int(rand.Reader, big.NewInt(int64(n)))
+	if err != nil {
+		// Fallback to time-based randomness if crypto/rand fails
+		return int(time.Now().UnixNano()) % n
+	}
+	return int(result.Int64())
+}
 
 const (
 	BoardWidth  = 10
@@ -28,8 +42,8 @@ type GameState struct {
 	Stats    struct {
 		TimePlayed   int     `json:"timePlayed"`
 		PiecesPlaced int     `json:"piecesPlaced"`
-		PPM          float64 `json:"ppm"`       
-		LineStats    [4]int  `json:"lineStats"` 
+		PPM          float64 `json:"ppm"`
+		LineStats    [4]int  `json:"lineStats"`
 	} `json:"stats"`
 }
 
@@ -47,8 +61,8 @@ type Tetris struct {
 	holdUsed      bool
 
 	startTime     time.Time
-	pausedTime    time.Duration 
-	lastPauseTime time.Time    
+	pausedTime    time.Duration
+	lastPauseTime time.Time
 	piecesPlaced  int
 	lineStats     [4]int // [singles, doubles, triples, tetris]
 
@@ -129,7 +143,7 @@ func (t *Tetris) spawnPiece() {
 		t.currentPiece.y = 0
 		t.spawnNextPiece()
 	} else {
-		pieceType := rand.Intn(len(pieces))
+		pieceType := secureRandIntn(len(pieces))
 		t.currentPiece = &Piece{
 			shape:     copyShape(pieces[pieceType]),
 			x:         BoardWidth/2 - 1,
@@ -147,7 +161,7 @@ func (t *Tetris) spawnPiece() {
 }
 
 func (t *Tetris) spawnNextPiece() {
-	pieceType := rand.Intn(len(pieces))
+	pieceType := secureRandIntn(len(pieces))
 	t.nextPiece = &Piece{
 		shape:     copyShape(pieces[pieceType]),
 		x:         0,
@@ -324,7 +338,6 @@ func supportsColor() bool {
 	term := os.Getenv("TERM")
 	return term != "" && term != "dumb"
 }
-
 
 func (t *Tetris) movePiece(dx, dy int) bool {
 	if t.currentPiece == nil {

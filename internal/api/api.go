@@ -5,6 +5,7 @@ import (
 	"io/fs"
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/isaacjstriker/devware/internal/config"
 	"github.com/isaacjstriker/devware/internal/database"
@@ -73,7 +74,17 @@ func (s *APIServer) Start() {
 	go s.wsHub.Run()
 
 	log.Printf("API server listening on %s", s.listenAddr)
-	if err := http.ListenAndServe(s.listenAddr, router); err != nil {
+
+	// Create server with timeouts for security
+	server := &http.Server{
+		Addr:         s.listenAddr,
+		Handler:      router,
+		ReadTimeout:  15 * time.Second,
+		WriteTimeout: 15 * time.Second,
+		IdleTimeout:  60 * time.Second,
+	}
+
+	if err := server.ListenAndServe(); err != nil {
 		log.Fatalf("could not start server: %s", err)
 	}
 }
@@ -90,5 +101,7 @@ func (s *APIServer) handleIndex(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "text/html")
-	w.Write(indexHTML)
+	if _, err := w.Write(indexHTML); err != nil {
+		log.Printf("Error writing index HTML: %v", err)
+	}
 }

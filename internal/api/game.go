@@ -63,7 +63,7 @@ func gameLoop(conn *websocket.Conn, game *tetris.Tetris) {
 				return
 			}
 			switch msg.Type {
-case "input":
+			case "input":
 				inputChan <- msg.Key
 			case "setLevel":
 				game.SetLevel(msg.Level)
@@ -81,7 +81,9 @@ case "input":
 
 		case <-ticker.C:
 			if game.IsGameOver() {
-				conn.WriteJSON(map[string]interface{}{"type": "gameOver", "score": game.GetScore()})
+				if err := conn.WriteJSON(map[string]interface{}{"type": "gameOver", "score": game.GetScore()}); err != nil {
+					log.Printf("Error writing game over message: %v", err)
+				}
 				return
 			}
 			game.Update()

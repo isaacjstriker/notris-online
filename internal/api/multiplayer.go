@@ -12,7 +12,10 @@ import (
 
 func generateRoomID() string {
 	bytes := make([]byte, 8)
-	rand.Read(bytes)
+	if _, err := rand.Read(bytes); err != nil {
+		// Fallback to time-based ID if crypto/rand fails
+		return hex.EncodeToString([]byte(time.Now().Format("20060102150405")))
+	}
 	return hex.EncodeToString(bytes)
 }
 
