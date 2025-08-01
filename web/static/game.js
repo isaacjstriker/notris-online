@@ -322,9 +322,10 @@ function startGame(gameType, startLevel = GAME_CONFIG.DEFAULT_STARTING_LEVEL) {
         holdPieceCtx: !!holdPieceCtx
     });
 
-    const protocol = window.location.protocol === 'https' ? 'wss' : 'ws';
+    const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
     const wsURL = `${protocol}://${window.location.host}/ws/game`;
 
+    console.log('Protocol detected:', window.location.protocol, '-> Using WebSocket protocol:', protocol);
     console.log('Connecting to:', wsURL);
     console.log('Current location:', {
         protocol: window.location.protocol,
