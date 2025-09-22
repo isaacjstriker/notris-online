@@ -67,7 +67,7 @@ I created this as my capstone project for Boot.dev, in which computer science an
 
 ## Contributing
 
-You are more than welcome to contribute if you have a feature or bug fix in mind. Please give a clear description of your work when you push you open a pull request.
+You are more than welcome to contribute if you have a feature or bug fix in mind. Please give a clear description of your work when you open a pull request.
 
 ### About the developer
 I'm a full stack web developer that will create projects as case studies, to determine areas for technical skill improvement. I love all programming languages, I do not discriminate (except for Assembly LOL).
