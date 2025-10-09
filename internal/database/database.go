@@ -20,7 +20,6 @@ type DB struct {
 type User struct {
 	ID        int        `json:"id"`
 	Username  string     `json:"username"`
-	Email     string     `json:"email"`
 	CreatedAt time.Time  `json:"created_at"`
 	LastLogin *time.Time `json:"last_login"`
 }
@@ -230,7 +229,6 @@ func (db *DB) CreateUser(username, passwordHash string) (*User, error) {
 	return &User{
 		ID:        user.ID,
 		Username:  username,
-		Email:     "", // No email provided
 		CreatedAt: user.CreatedAt,
 	}, nil
 }
@@ -251,7 +249,6 @@ func (db *DB) GetUserByUsername(username string) (*User, string, error) {
 		return nil, "", fmt.Errorf("failed to get user: %w", err)
 	}
 
-	user.Email = "" // No email field in database
 	return &user, passwordHash, nil
 }
 

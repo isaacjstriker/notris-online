@@ -27,7 +27,6 @@ func NewAPIServer(cfg *config.Config, db *database.DB) *APIServer {
 		listenAddr: fmt.Sprintf("%s:%d", cfg.ServerHost, cfg.ServerPort),
 	}
 
-	// Create JWT validator function
 	jwtValidator := func(tokenString string) (*multiplayer.UserInfo, error) {
 		userInfo, err := server.validateJWT(tokenString)
 		if err != nil {
@@ -75,7 +74,6 @@ func (s *APIServer) Start() {
 
 	log.Printf("API server listening on %s", s.listenAddr)
 
-	// Create server with timeouts for security
 	server := &http.Server{
 		Addr:         s.listenAddr,
 		Handler:      router,
@@ -89,7 +87,6 @@ func (s *APIServer) Start() {
 	}
 }
 
-// handleIndex serves the main index.html file from the embedded filesystem
 func (s *APIServer) handleIndex(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path != "/" {
 		http.NotFound(w, r)

@@ -12,7 +12,6 @@ import (
 	"golang.org/x/term"
 )
 
-// ReadInput reads a line of input from the user
 func ReadInput(prompt string) (string, error) {
 	fmt.Print(prompt)
 	reader := bufio.NewReader(os.Stdin)
@@ -23,7 +22,6 @@ func ReadInput(prompt string) (string, error) {
 	return strings.TrimSpace(input), nil
 }
 
-// ReadPassword reads a password without echoing it to the terminal
 func ReadPassword(prompt string) (string, error) {
 	fmt.Print(prompt)
 	bytePassword, err := term.ReadPassword(int(syscall.Stdin))
@@ -87,7 +85,6 @@ func ValidatePassword(password string) error {
 		return fmt.Errorf("password must be no more than 128 characters long")
 	}
 
-	// Check for at least one letter and one number
 	hasLetter := regexp.MustCompile(`[a-zA-Z]`).MatchString(password)
 	hasNumber := regexp.MustCompile(`[0-9]`).MatchString(password)
 

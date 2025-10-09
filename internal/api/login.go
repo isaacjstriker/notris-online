@@ -53,7 +53,6 @@ func (s *APIServer) handleLogin(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, resp)
 }
 
-// createJWT generates a new JWT for a given user
 func createJWT(userID int, username, secret string) (string, error) {
 	claims := &jwt.MapClaims{
 		"expiresAt": jwt.NewNumericDate(time.Now().Add(time.Hour * 24 * 7)), // 1 week

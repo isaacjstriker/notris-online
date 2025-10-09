@@ -7,14 +7,12 @@ import (
 	"time"
 )
 
-// secureRandIntn generates a cryptographically secure random number in range [0, n)
 func secureRandIntn(n int) int {
 	if n <= 0 {
 		return 0
 	}
 	result, err := rand.Int(rand.Reader, big.NewInt(int64(n)))
 	if err != nil {
-		// Fallback to time-based randomness if crypto/rand fails
 		return int(time.Now().UnixNano()) % n
 	}
 	return int(result.Int64())
@@ -64,9 +62,8 @@ type Tetris struct {
 	pausedTime    time.Duration
 	lastPauseTime time.Time
 	piecesPlaced  int
-	lineStats     [4]int // [singles, doubles, triples, tetris]
+	lineStats     [4]int
 
-	// For web socket communication
 	dropCounter int
 	dropSpeed   int
 }

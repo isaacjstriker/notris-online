@@ -14,11 +14,10 @@ import (
 
 var upgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool {
-		return true // Allow all origins for development
+		return true
 	},
 }
 
-// WebSocketMessage represents a WebSocket message
 type WebSocketMessage struct {
 	Type   string                 `json:"type"`
 	RoomID string                 `json:"room_id,omitempty"`
@@ -27,7 +26,6 @@ type WebSocketMessage struct {
 	Error  string                 `json:"error,omitempty"`
 }
 
-// Client represents a WebSocket client
 type Client struct {
 	ID     string
 	UserID int
@@ -37,30 +35,26 @@ type Client struct {
 	Hub    *Hub
 }
 
-// UserInfo represents user information from JWT token
 type UserInfo struct {
 	ID       int    `json:"user_id"`
 	Username string `json:"username"`
 }
 
-// JWTValidator is a function type for validating JWT tokens
 type JWTValidator func(tokenString string) (*UserInfo, error)
 
-// MultiplayerGame represents an active multiplayer game session
 type MultiplayerGame struct {
 	RoomID     string
-	Players    map[int]*tetris.Tetris // UserID -> Game instance
+	Players    map[int]*tetris.Tetris
 	StartTime  time.Time
 	IsActive   bool
 	GameTicker *time.Ticker
 	mutex      sync.RWMutex
 }
 
-// Hub maintains active clients and broadcasts messages
 type Hub struct {
 	clients          map[*Client]bool
 	rooms            map[string]map[*Client]bool
-	multiplayerGames map[string]*MultiplayerGame // RoomID -> Game
+	multiplayerGames map[string]*MultiplayerGame
 	broadcast        chan WebSocketMessage
 	register         chan *Client
 	unregister       chan *Client
@@ -85,9 +79,7 @@ func NewHub(db *database.DB, jwtValidator JWTValidator) *Hub {
 	}
 }
 
-// Run starts the hub
 func (h *Hub) Run() {
-	// Start the room cleanup goroutine
 	go h.startRoomCleanup()
 
 	for {
@@ -101,12 +93,10 @@ func (h *Hub) Run() {
 				}
 				h.rooms[client.RoomID][client] = true
 
-				// Check if this is a reconnection during an active game
 				go h.checkReconnection(client.UserID, client.RoomID)
 			}
 			h.mutex.Unlock()
 
-			// Send welcome message
 			select {
 			case client.Send <- WebSocketMessage{
 				Type: "connected",
@@ -133,7 +123,6 @@ func (h *Hub) Run() {
 						delete(h.rooms, roomID)
 					}
 
-					// Handle player disconnection during game
 					go h.handlePlayerDisconnection(client.UserID, roomID)
 				}
 				close(client.Send)
@@ -147,9 +136,8 @@ func (h *Hub) Run() {
 	}
 }
 
-// startRoomCleanup runs a background task to clean up inactive rooms
 func (h *Hub) startRoomCleanup() {
-	ticker := time.NewTicker(1 * time.Minute) // Check every minute
+	ticker := time.NewTicker(1 * time.Minute)
 	defer ticker.Stop()
 
 	for {
@@ -163,7 +151,6 @@ func (h *Hub) startRoomCleanup() {
 	}
 }
 
-// cleanupInactiveRooms removes rooms that have been waiting for more than 5 minutes
 func (h *Hub) cleanupInactiveRooms() {
 	log.Printf("Running room cleanup check...")
 	maxAge := 5 * time.Minute
@@ -178,9 +165,7 @@ func (h *Hub) cleanupInactiveRooms() {
 	if len(cleanedRoomIDs) > 0 {
 		log.Printf("Cleaned up %d inactive rooms", len(cleanedRoomIDs))
 
-		// Notify all clients that these rooms have been removed
 		for _, roomID := range cleanedRoomIDs {
-			// Disconnect any clients still connected to these rooms
 			h.mutex.RLock()
 			roomClients := h.rooms[roomID]
 			h.mutex.RUnlock()
@@ -195,7 +180,6 @@ func (h *Hub) cleanupInactiveRooms() {
 					},
 				}:
 				default:
-					// Client send channel is full, close it
 					close(client.Send)
 					h.mutex.Lock()
 					delete(h.clients, client)
@@ -204,13 +188,11 @@ func (h *Hub) cleanupInactiveRooms() {
 				}
 			}
 
-			// Clean up the room from memory
 			h.mutex.Lock()
 			delete(h.rooms, roomID)
 			h.mutex.Unlock()
 		}
 
-		// Broadcast to all clients to refresh their room lists
 		h.broadcastToAll(WebSocketMessage{
 			Type: "rooms_updated",
 			Data: map[string]interface{}{
@@ -221,7 +203,6 @@ func (h *Hub) cleanupInactiveRooms() {
 	}
 }
 
-// broadcastToAll sends a message to all connected clients
 func (h *Hub) broadcastToAll(message WebSocketMessage) {
 	h.mutex.RLock()
 	clients := make([]*Client, 0, len(h.clients))
@@ -245,12 +226,10 @@ func (h *Hub) broadcastToAll(message WebSocketMessage) {
 	}
 }
 
-// Stop gracefully stops the hub
 func (h *Hub) Stop() {
 	close(h.stopCleanup)
 }
 
-// handleMessage processes different types of WebSocket messages
 func (h *Hub) handleMessage(message WebSocketMessage) {
 	switch message.Type {
 	case "room_update":
@@ -284,12 +263,10 @@ func (h *Hub) handleMessage(message WebSocketMessage) {
 
 }
 
-// handleSetLevel broadcasts a level change to all clients in the room
 func (h *Hub) handleSetLevel(message WebSocketMessage) {
 	if message.RoomID == "" {
 		return
 	}
-	// Broadcast the setLevel event to all clients
 	h.broadcastToRoom(message.RoomID, WebSocketMessage{
 		Type:   "setLevel",
 		RoomID: message.RoomID,
@@ -297,7 +274,6 @@ func (h *Hub) handleSetLevel(message WebSocketMessage) {
 	})
 }
 
-// handleMultiplayerInit sets the starting level for the room if provided
 func (h *Hub) handleMultiplayerInit(message WebSocketMessage) {
 	if message.RoomID == "" {
 		return
@@ -313,7 +289,6 @@ func (h *Hub) handleMultiplayerInit(message WebSocketMessage) {
 			}
 		}
 	}
-	// Update the room's settings in the database
 	room, err := h.db.GetMultiplayerRoom(message.RoomID)
 	if err != nil {
 		log.Printf("Failed to get room for multiplayerInit: %v", err)
@@ -330,13 +305,11 @@ func (h *Hub) handleMultiplayerInit(message WebSocketMessage) {
 	}
 }
 
-// handleGameState updates player game state and broadcasts to room
 func (h *Hub) handleGameState(message WebSocketMessage) {
 	if message.RoomID == "" || message.UserID == 0 {
 		return
 	}
 
-	// Update database
 	score := 0
 	if s, ok := message.Data["score"].(float64); ok {
 		score = int(s)
@@ -348,7 +321,6 @@ func (h *Hub) handleGameState(message WebSocketMessage) {
 		return
 	}
 
-	// Broadcast to room
 	h.broadcastToRoom(message.RoomID, WebSocketMessage{
 		Type:   "player_update",
 		RoomID: message.RoomID,
@@ -357,7 +329,6 @@ func (h *Hub) handleGameState(message WebSocketMessage) {
 	})
 }
 
-// handleStartMultiplayerGame starts actual gameplay for all players in the room
 func (h *Hub) handleStartMultiplayerGame(message WebSocketMessage) {
 	if message.RoomID == "" {
 		log.Printf("No room ID provided for start_multiplayer_game")
@@ -366,7 +337,6 @@ func (h *Hub) handleStartMultiplayerGame(message WebSocketMessage) {
 
 	log.Printf("Starting multiplayer game for room: %s", message.RoomID)
 
-	// Get room details to determine starting level
 	room, err := h.db.GetMultiplayerRoom(message.RoomID)
 	if err != nil {
 		log.Printf("Failed to get room for game start: %v", err)
@@ -382,7 +352,6 @@ func (h *Hub) handleStartMultiplayerGame(message WebSocketMessage) {
 		}
 	}
 
-	// Create multiplayer game session
 	h.mutex.Lock()
 	multiplayerGame := &MultiplayerGame{
 		RoomID:    message.RoomID,
@@ -391,7 +360,6 @@ func (h *Hub) handleStartMultiplayerGame(message WebSocketMessage) {
 		IsActive:  true,
 	}
 
-	// Create individual Tetris instances for each player in the room
 	for _, player := range room.Players {
 		tetrisGame := tetris.NewTetris()
 		tetrisGame.SetLevel(startingLevel)
@@ -403,7 +371,6 @@ func (h *Hub) handleStartMultiplayerGame(message WebSocketMessage) {
 	h.multiplayerGames[message.RoomID] = multiplayerGame
 	h.mutex.Unlock()
 
-	// Update room status to active in database
 	err = h.db.UpdateRoomStatus(message.RoomID, "active")
 	if err != nil {
 		log.Printf("Failed to update room status to active: %v", err)
@@ -411,10 +378,8 @@ func (h *Hub) handleStartMultiplayerGame(message WebSocketMessage) {
 		log.Printf("Room %s status updated to active", message.RoomID)
 	}
 
-	// Start the game tick for this multiplayer session
 	h.startMultiplayerGameTick(message.RoomID)
 
-	// Broadcast game start message to all players in the room
 	h.broadcastToRoom(message.RoomID, WebSocketMessage{
 		Type:   "multiplayer_game_started",
 		RoomID: message.RoomID,
@@ -427,10 +392,9 @@ func (h *Hub) handleStartMultiplayerGame(message WebSocketMessage) {
 	log.Printf("Multiplayer game started for room %s with %d players", message.RoomID, len(multiplayerGame.Players))
 }
 
-// startMultiplayerGameTick starts the game loop for a multiplayer game
 func (h *Hub) startMultiplayerGameTick(roomID string) {
 	go func() {
-		ticker := time.NewTicker(50 * time.Millisecond) // 20 FPS game loop
+		ticker := time.NewTicker(50 * time.Millisecond)
 		defer ticker.Stop()
 
 		for range ticker.C {
@@ -444,12 +408,10 @@ func (h *Hub) startMultiplayerGameTick(roomID string) {
 			}
 
 			multiplayerGame.mutex.Lock()
-			// Update each player's game and broadcast their state
 			for userID, tetrisGame := range multiplayerGame.Players {
 				if !tetrisGame.IsGameOver() {
 					tetrisGame.Update()
 
-					// Broadcast this player's game state to all players in the room
 					gameState := tetrisGame.GetState()
 					h.broadcastToRoom(roomID, WebSocketMessage{
 						Type:   "player_game_state",
@@ -472,13 +434,11 @@ func (h *Hub) startMultiplayerGameTick(roomID string) {
 			}
 			multiplayerGame.mutex.Unlock()
 
-			// Check if any player finished and handle game completion
 			h.checkMultiplayerGameCompletion(roomID)
 		}
 	}()
 }
 
-// checkMultiplayerGameCompletion checks if the multiplayer game should end
 func (h *Hub) checkMultiplayerGameCompletion(roomID string) {
 	h.mutex.RLock()
 	multiplayerGame, exists := h.multiplayerGames[roomID]
@@ -499,7 +459,6 @@ func (h *Hub) checkMultiplayerGameCompletion(roomID string) {
 	}
 	multiplayerGame.mutex.RUnlock()
 
-	// End the game when at least one player finishes (traditional Tetris multiplayer)
 	if finishedPlayers > 0 {
 		log.Printf("Ending multiplayer game in room %s (%d/%d players finished)",
 			roomID, finishedPlayers, totalPlayers)
@@ -507,7 +466,6 @@ func (h *Hub) checkMultiplayerGameCompletion(roomID string) {
 	}
 }
 
-// endMultiplayerGame ends a multiplayer game session
 func (h *Hub) endMultiplayerGame(roomID string) {
 	h.mutex.Lock()
 	multiplayerGame, exists := h.multiplayerGames[roomID]
@@ -523,13 +481,11 @@ func (h *Hub) endMultiplayerGame(roomID string) {
 	delete(h.multiplayerGames, roomID)
 	h.mutex.Unlock()
 
-	// Update room status back to waiting
 	err := h.db.UpdateRoomStatus(roomID, "waiting")
 	if err != nil {
 		log.Printf("Failed to update room status to waiting: %v", err)
 	}
 
-	// Send final results to all players
 	h.broadcastToRoom(roomID, WebSocketMessage{
 		Type:   "multiplayer_game_ended",
 		RoomID: roomID,
@@ -541,14 +497,12 @@ func (h *Hub) endMultiplayerGame(roomID string) {
 	log.Printf("Multiplayer game ended for room %s", roomID)
 }
 
-// handleGameInput processes game input from players and broadcasts state changes
 func (h *Hub) handleGameInput(message WebSocketMessage) {
 	if message.RoomID == "" || message.UserID == 0 {
 		log.Printf("Invalid game input: missing room ID or user ID")
 		return
 	}
 
-	// Get the action from the message data
 	action, ok := message.Data["action"].(string)
 	if !ok {
 		log.Printf("Invalid game input: no action specified")
@@ -557,7 +511,6 @@ func (h *Hub) handleGameInput(message WebSocketMessage) {
 
 	log.Printf("Game input from user %d in room %s: %s", message.UserID, message.RoomID, action)
 
-	// Get the multiplayer game instance
 	h.mutex.RLock()
 	multiplayerGame, exists := h.multiplayerGames[message.RoomID]
 	h.mutex.RUnlock()
@@ -567,7 +520,6 @@ func (h *Hub) handleGameInput(message WebSocketMessage) {
 		return
 	}
 
-	// Get the player's game instance
 	multiplayerGame.mutex.Lock()
 	tetrisGame, playerExists := multiplayerGame.Players[message.UserID]
 	if !playerExists {
@@ -576,14 +528,11 @@ func (h *Hub) handleGameInput(message WebSocketMessage) {
 		return
 	}
 
-	// Process the input through the Tetris game engine
 	if !tetrisGame.IsGameOver() {
 		tetrisGame.HandleWebInput(action)
 
-		// Get the updated game state
 		gameState := tetrisGame.GetState()
 
-		// Broadcast this player's updated game state to all players in the room
 		h.broadcastToRoom(message.RoomID, WebSocketMessage{
 			Type:   "player_game_state",
 			RoomID: message.RoomID,
@@ -608,7 +557,6 @@ func (h *Hub) handleGameInput(message WebSocketMessage) {
 	multiplayerGame.mutex.Unlock()
 }
 
-// handlePlayerReady sets player ready status
 func (h *Hub) handlePlayerReady(message WebSocketMessage) {
 	if message.RoomID == "" || message.UserID == 0 {
 		return
@@ -625,14 +573,12 @@ func (h *Hub) handlePlayerReady(message WebSocketMessage) {
 		return
 	}
 
-	// Get updated room info
 	room, err := h.db.GetMultiplayerRoom(message.RoomID)
 	if err != nil {
 		log.Printf("Failed to get room: %v", err)
 		return
 	}
 
-	// Broadcast room update
 	h.broadcastToRoom(message.RoomID, WebSocketMessage{
 		Type:   "room_update",
 		RoomID: message.RoomID,
@@ -641,17 +587,14 @@ func (h *Hub) handlePlayerReady(message WebSocketMessage) {
 		},
 	})
 
-	// Check if all players are ready and start game automatically
 	h.checkAndStartGame(room)
 }
 
-// checkAndStartGame starts the game if all players are ready
 func (h *Hub) checkAndStartGame(room *database.MultiplayerRoom) {
 	if room.Status != "waiting" {
-		return // Game already started or finished
+		return
 	}
 
-	// Count ready players
 	readyCount := 0
 	totalPlayers := len(room.Players)
 
@@ -663,7 +606,6 @@ func (h *Hub) checkAndStartGame(room *database.MultiplayerRoom) {
 
 	log.Printf("Room %s ready check: %d/%d players ready", room.ID, readyCount, totalPlayers)
 
-	// Start game if we have at least 2 players and all are ready
 	if totalPlayers >= 2 && readyCount == totalPlayers {
 		log.Printf("Auto-starting game in room %s: %d/%d players ready", room.ID, readyCount, totalPlayers)
 
@@ -673,7 +615,6 @@ func (h *Hub) checkAndStartGame(room *database.MultiplayerRoom) {
 			return
 		}
 
-		// Broadcast game start
 		h.broadcastToRoom(room.ID, WebSocketMessage{
 			Type:   "game_start",
 			RoomID: room.ID,
@@ -685,7 +626,6 @@ func (h *Hub) checkAndStartGame(room *database.MultiplayerRoom) {
 	}
 }
 
-// handleStartGame attempts to start the game
 func (h *Hub) handleStartGame(message WebSocketMessage) {
 	if message.RoomID == "" {
 		return
@@ -694,7 +634,6 @@ func (h *Hub) handleStartGame(message WebSocketMessage) {
 	err := h.db.StartMultiplayerGame(message.RoomID)
 	if err != nil {
 		log.Printf("Failed to start game: %v", err)
-		// Send error to requesting client
 		h.broadcastToRoom(message.RoomID, WebSocketMessage{
 			Type:  "error",
 			Error: err.Error(),
@@ -702,7 +641,6 @@ func (h *Hub) handleStartGame(message WebSocketMessage) {
 		return
 	}
 
-	// Broadcast game start
 	h.broadcastToRoom(message.RoomID, WebSocketMessage{
 		Type:   "game_started",
 		RoomID: message.RoomID,
@@ -712,7 +650,6 @@ func (h *Hub) handleStartGame(message WebSocketMessage) {
 	})
 }
 
-// handlePlayerFinished marks player as finished and handles game completion
 func (h *Hub) handlePlayerFinished(message WebSocketMessage) {
 	if message.RoomID == "" || message.UserID == 0 {
 		return
@@ -728,11 +665,10 @@ func (h *Hub) handlePlayerFinished(message WebSocketMessage) {
 		lines = int(l)
 	}
 
-	// Calculate position based on existing finished players
 	position, err := h.calculatePlayerPosition(message.RoomID, score)
 	if err != nil {
 		log.Printf("Failed to calculate position: %v", err)
-		position = 1 // Default position
+		position = 1
 	}
 
 	err = h.db.FinishPlayerGame(message.RoomID, message.UserID, score, position)
@@ -741,14 +677,12 @@ func (h *Hub) handlePlayerFinished(message WebSocketMessage) {
 		return
 	}
 
-	// Get player username for notification
 	username, err := h.getUsernameByID(message.UserID)
 	if err != nil {
 		log.Printf("Failed to get username: %v", err)
 		username = "Unknown Player"
 	}
 
-	// Broadcast player finished to all players in room
 	h.broadcastToRoom(message.RoomID, WebSocketMessage{
 		Type:   "player_finished",
 		RoomID: message.RoomID,
@@ -761,39 +695,30 @@ func (h *Hub) handlePlayerFinished(message WebSocketMessage) {
 		},
 	})
 
-	// Check if game is complete and handle final results
 	go h.checkGameCompletion(message.RoomID)
 }
 
-// calculatePlayerPosition determines finishing position based on score
 func (h *Hub) calculatePlayerPosition(roomID string, score int) (int, error) {
 	return h.db.CalculatePlayerPosition(roomID, score)
 }
 
-// checkGameCompletion checks if any player has finished and ends the game immediately
 func (h *Hub) checkGameCompletion(roomID string) {
-	// Count finished players
 	finishedCount, err := h.db.GetFinishedPlayerCount(roomID)
 	if err != nil {
 		log.Printf("Failed to count finished players: %v", err)
 		return
 	}
 
-	// In multiplayer Tetris, when one player finishes (gets game over), the match ends for everyone
 	if finishedCount >= 1 {
 		log.Printf("Player finished in room %s, ending match for all players", roomID)
 
-		// Mark remaining active players as finished with their current scores
 		h.finishRemainingPlayers(roomID)
 
-		// Send final results
 		h.sendFinalResults(roomID)
 	}
 }
 
-// finishRemainingPlayers marks all remaining active players as finished
 func (h *Hub) finishRemainingPlayers(roomID string) {
-	// Get all players in the room
 	players, err := h.db.GetRoomPlayers(roomID)
 	if err != nil {
 		log.Printf("Failed to get room players for finishing: %v", err)
@@ -801,12 +726,10 @@ func (h *Hub) finishRemainingPlayers(roomID string) {
 	}
 
 	for _, player := range players {
-		// If player hasn't finished yet, mark them as finished
 		if player.Status != "finished" {
-			// Calculate their position (they get last place since they didn't finish naturally)
 			position, err := h.db.CalculatePlayerPosition(roomID, player.Score)
 			if err != nil {
-				position = len(players) // Default to last position
+				position = len(players)
 			}
 
 			err = h.db.FinishPlayerGame(roomID, player.UserID, player.Score, position)
@@ -819,16 +742,13 @@ func (h *Hub) finishRemainingPlayers(roomID string) {
 	}
 }
 
-// sendFinalResults broadcasts final game results to all players
 func (h *Hub) sendFinalResults(roomID string) {
-	// Get final standings
 	results, err := h.db.GetGameResults(roomID)
 	if err != nil {
 		log.Printf("Failed to get final results: %v", err)
 		return
 	}
 
-	// Broadcast final results
 	h.broadcastToRoom(roomID, WebSocketMessage{
 		Type:   "game_complete",
 		RoomID: roomID,
@@ -837,7 +757,6 @@ func (h *Hub) sendFinalResults(roomID string) {
 		},
 	})
 
-	// Update room status to completed
 	err = h.db.UpdateRoomStatus(roomID, "completed")
 	if err != nil {
 		log.Printf("Failed to update room status: %v", err)
@@ -846,39 +765,32 @@ func (h *Hub) sendFinalResults(roomID string) {
 	log.Printf("Game completed for room %s with %d players", roomID, len(results))
 }
 
-// getUsernameByID gets username by user ID
 func (h *Hub) getUsernameByID(userID int) (string, error) {
 	return h.db.GetUsernameByID(userID)
 }
 
-// handlePlayerDisconnection handles when a player disconnects during a game
 func (h *Hub) handlePlayerDisconnection(userID int, roomID string) {
-	// Get room info to check game status
 	room, err := h.db.GetMultiplayerRoom(roomID)
 	if err != nil {
 		log.Printf("Failed to get room for disconnection handling: %v", err)
 		return
 	}
 
-	// Only handle disconnections during active games
 	if room.Status != "active" {
 		return
 	}
 
-	// Get player info
 	username, err := h.getUsernameByID(userID)
 	if err != nil {
 		log.Printf("Failed to get username for disconnected player: %v", err)
 		username = "Unknown Player"
 	}
 
-	// Mark player as disconnected in database
 	err = h.db.UpdatePlayerStatus(roomID, userID, "disconnected")
 	if err != nil {
 		log.Printf("Failed to update player status to disconnected: %v", err)
 	}
 
-	// Notify other players about disconnection
 	h.broadcastToRoom(roomID, WebSocketMessage{
 		Type:   "player_disconnected",
 		RoomID: roomID,
@@ -889,24 +801,19 @@ func (h *Hub) handlePlayerDisconnection(userID int, roomID string) {
 		},
 	})
 
-	// Check if we should pause the game (if there are other players still connected)
 	h.mutex.RLock()
 	activeClients := len(h.rooms[roomID])
 	h.mutex.RUnlock()
 
-	// Check if this is a multiplayer game session
 	h.mutex.RLock()
 	multiplayerGame, isMultiplayerGame := h.multiplayerGames[roomID]
 	h.mutex.RUnlock()
 
 	if isMultiplayerGame && multiplayerGame.IsActive {
-		// For multiplayer games, immediately end the game when a player disconnects
 		log.Printf("Player %s disconnected from active multiplayer game in room %s, ending game", username, roomID)
 
-		// End the multiplayer game immediately
 		h.endMultiplayerGame(roomID)
 
-		// Notify remaining players that the match ended due to disconnection
 		h.broadcastToRoom(roomID, WebSocketMessage{
 			Type:   "match_ended",
 			RoomID: roomID,
@@ -917,19 +824,16 @@ func (h *Hub) handlePlayerDisconnection(userID int, roomID string) {
 			},
 		})
 	} else if activeClients > 0 {
-		// For non-multiplayer games, start disconnection timer (30 seconds to reconnect)
 		go h.startDisconnectionTimer(userID, roomID, username, 30*time.Second)
 	}
 }
 
-// startDisconnectionTimer gives a player time to reconnect before ending their game
 func (h *Hub) startDisconnectionTimer(userID int, roomID string, username string, timeout time.Duration) {
 	timer := time.NewTimer(timeout)
 	defer timer.Stop()
 
 	<-timer.C
 
-	// Check if player has reconnected
 	h.mutex.RLock()
 	playerReconnected := false
 	if roomClients, exists := h.rooms[roomID]; exists {
@@ -943,16 +847,13 @@ func (h *Hub) startDisconnectionTimer(userID int, roomID string, username string
 	h.mutex.RUnlock()
 
 	if !playerReconnected {
-		// Player didn't reconnect in time, end their game
 		log.Printf("Player %s didn't reconnect to room %s in time, ending their game", username, roomID)
 
-		// Mark as finished with 0 score due to disconnection
-		err := h.db.FinishPlayerGame(roomID, userID, 0, 999) // Use high position number for disconnected
+		err := h.db.FinishPlayerGame(roomID, userID, 0, 999)
 		if err != nil {
 			log.Printf("Failed to finish disconnected player game: %v", err)
 		}
 
-		// Notify other players
 		h.broadcastToRoom(roomID, WebSocketMessage{
 			Type:   "player_disconnected_timeout",
 			RoomID: roomID,
@@ -963,27 +864,22 @@ func (h *Hub) startDisconnectionTimer(userID int, roomID string, username string
 			},
 		})
 
-		// Check if game should continue or end
 		go h.checkGameCompletion(roomID)
 	}
 }
 
-// handlePlayerReconnection handles when a player reconnects to an active game
 func (h *Hub) handlePlayerReconnection(userID int, roomID string) {
-	// Get player info
 	username, err := h.getUsernameByID(userID)
 	if err != nil {
 		log.Printf("Failed to get username for reconnected player: %v", err)
 		username = "Unknown Player"
 	}
 
-	// Update player status to active
 	err = h.db.UpdatePlayerStatus(roomID, userID, "active")
 	if err != nil {
 		log.Printf("Failed to update player status to active: %v", err)
 	}
 
-	// Notify other players about reconnection
 	h.broadcastToRoom(roomID, WebSocketMessage{
 		Type:   "player_reconnected",
 		RoomID: roomID,
@@ -997,18 +893,14 @@ func (h *Hub) handlePlayerReconnection(userID int, roomID string) {
 	log.Printf("Player %s reconnected to room %s", username, roomID)
 }
 
-// checkReconnection checks if a player is reconnecting to an active game
 func (h *Hub) checkReconnection(userID int, roomID string) {
-	// Get room info to check game status
 	room, err := h.db.GetMultiplayerRoom(roomID)
 	if err != nil {
 		log.Printf("Failed to get room for reconnection check: %v", err)
 		return
 	}
 
-	// Check if room is in active game state
 	if room.Status == "active" {
-		// Check if player was marked as disconnected
 		for _, player := range room.Players {
 			if player.UserID == userID && player.Status == "disconnected" {
 				h.handlePlayerReconnection(userID, roomID)
@@ -1018,12 +910,10 @@ func (h *Hub) checkReconnection(userID int, roomID string) {
 	}
 }
 
-// handlePlayerDisconnectMessage handles explicit disconnect messages from clients
 func (h *Hub) handlePlayerDisconnectMessage(message WebSocketMessage) {
 	userID := message.UserID
 	roomID := message.RoomID
 
-	// Extract reason from message data
 	reason := "user_initiated"
 	if message.Data != nil {
 		if r, ok := message.Data["reason"].(string); ok {
@@ -1033,24 +923,20 @@ func (h *Hub) handlePlayerDisconnectMessage(message WebSocketMessage) {
 
 	log.Printf("Received explicit disconnect message from user %d in room %s, reason: %s", userID, roomID, reason)
 
-	// Call the existing disconnect handling logic
 	h.handlePlayerDisconnection(userID, roomID)
 }
 
-// handleSpectateRequest handles requests to spectate an ongoing game
 func (h *Hub) handleSpectateRequest(message WebSocketMessage) {
 	if message.RoomID == "" || message.UserID == 0 {
 		return
 	}
 
-	// Get room info to check if game is active
 	room, err := h.db.GetMultiplayerRoom(message.RoomID)
 	if err != nil {
 		log.Printf("Failed to get room for spectate request: %v", err)
 		return
 	}
 
-	// Only allow spectating active games
 	if room.Status != "active" {
 		// Send error response
 		h.sendToUser(message.UserID, WebSocketMessage{
@@ -1060,14 +946,12 @@ func (h *Hub) handleSpectateRequest(message WebSocketMessage) {
 		return
 	}
 
-	// Get current game state for all players
 	gameStates, err := h.getActiveGameStates(message.RoomID)
 	if err != nil {
 		log.Printf("Failed to get game states for spectating: %v", err)
 		return
 	}
 
-	// Get player usernames for display
 	playerInfo := make(map[string]interface{})
 	for _, player := range room.Players {
 		if player.Status == "active" || player.Status == "finished" {
@@ -1079,7 +963,6 @@ func (h *Hub) handleSpectateRequest(message WebSocketMessage) {
 		}
 	}
 
-	// Send spectate data
 	h.sendToUser(message.UserID, WebSocketMessage{
 		Type:   "spectate_data",
 		RoomID: message.RoomID,
@@ -1094,29 +977,24 @@ func (h *Hub) handleSpectateRequest(message WebSocketMessage) {
 	log.Printf("User %d started spectating room %s", message.UserID, message.RoomID)
 }
 
-// getActiveGameStates retrieves current game states for all active players
 func (h *Hub) getActiveGameStates(roomID string) (map[string]interface{}, error) {
-	// Get results for active game
 	rows, err := h.db.GetGameResults(roomID)
 	if err != nil {
 		return nil, err
 	}
 
 	gameStates := make(map[string]interface{})
-	// Note: For a complete implementation, you'd want to store and retrieve
-	// actual game board states, but for now we'll return basic info
 	for _, result := range rows {
 		userID := result["userID"]
 		gameStates[fmt.Sprintf("player_%v", userID)] = map[string]interface{}{
 			"score":  result["score"],
-			"status": "active", // Simplified for now
+			"status": "active",
 		}
 	}
 
 	return gameStates, nil
 }
 
-// sendToUser sends a message to a specific user
 func (h *Hub) sendToUser(userID int, message WebSocketMessage) {
 	h.mutex.RLock()
 	defer h.mutex.RUnlock()
@@ -1134,7 +1012,6 @@ func (h *Hub) sendToUser(userID int, message WebSocketMessage) {
 	}
 }
 
-// broadcastToRoom sends a message to all clients in a room
 func (h *Hub) broadcastToRoom(roomID string, message WebSocketMessage) {
 	h.mutex.RLock()
 	roomClients := h.rooms[roomID]
@@ -1157,11 +1034,9 @@ func (h *Hub) broadcastToRoom(roomID string, message WebSocketMessage) {
 	}
 }
 
-// NotifyPlayerLeft notifies other players that someone left during an active game
 func (h *Hub) NotifyPlayerLeft(roomID string, userID int, username string) {
 	log.Printf("Notifying room %s that player %s left during active game", roomID, username)
 
-	// Broadcast to all players in the room that the match has ended due to a player leaving
 	h.broadcastToRoom(roomID, WebSocketMessage{
 		Type:   "match_ended",
 		RoomID: roomID,
@@ -1173,18 +1048,15 @@ func (h *Hub) NotifyPlayerLeft(roomID string, userID int, username string) {
 	})
 }
 
-// NotifyPlayerLeftWaiting notifies other players that someone left a waiting room
 func (h *Hub) NotifyPlayerLeftWaiting(roomID string, userID int, username string) {
 	log.Printf("Notifying room %s that player %s left waiting room", roomID, username)
 
-	// Get updated room info to send to remaining players
 	room, err := h.db.GetMultiplayerRoom(roomID)
 	if err != nil {
 		log.Printf("Failed to get room after player left: %v", err)
 		return
 	}
 
-	// Broadcast room update to remaining players
 	h.broadcastToRoom(roomID, WebSocketMessage{
 		Type:   "room_update",
 		RoomID: roomID,
@@ -1198,7 +1070,6 @@ func (h *Hub) NotifyPlayerLeftWaiting(roomID string, userID int, username string
 	})
 }
 
-// ServeWS handles WebSocket requests
 func (h *Hub) ServeWS(w http.ResponseWriter, r *http.Request) {
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
@@ -1206,7 +1077,6 @@ func (h *Hub) ServeWS(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Extract room ID from path
 	roomID := r.PathValue("roomId")
 	if roomID == "" {
 		log.Printf("No room ID provided in WebSocket connection")
@@ -1216,7 +1086,6 @@ func (h *Hub) ServeWS(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get JWT token from query parameter
 	token := r.URL.Query().Get("token")
 	if token == "" {
 		log.Printf("No token provided in WebSocket connection")
@@ -1226,7 +1095,6 @@ func (h *Hub) ServeWS(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Validate JWT token and get user info
 	userInfo, err := h.validateJWT(token)
 	if err != nil {
 		log.Printf("Invalid JWT token in WebSocket connection: %v", err)
@@ -1247,12 +1115,10 @@ func (h *Hub) ServeWS(w http.ResponseWriter, r *http.Request) {
 
 	client.Hub.register <- client
 
-	// Start goroutines for reading and writing
 	go client.writePump()
 	go client.readPump()
 }
 
-// readPump pumps messages from the WebSocket connection to the hub
 func (c *Client) readPump() {
 	defer func() {
 		c.Hub.unregister <- c
@@ -1283,7 +1149,6 @@ func (c *Client) readPump() {
 			break
 		}
 
-		// Set user ID and room ID from client
 		message.UserID = c.UserID
 		message.RoomID = c.RoomID
 
@@ -1291,7 +1156,6 @@ func (c *Client) readPump() {
 	}
 }
 
-// writePump pumps messages from the hub to the WebSocket connection
 func (c *Client) writePump() {
 	ticker := time.NewTicker(54 * time.Second)
 	defer func() {
@@ -1332,12 +1196,10 @@ func (c *Client) writePump() {
 	}
 }
 
-// generateClientID generates a unique client ID
 func generateClientID() string {
 	return time.Now().Format("20060102150405") + "_" + generateRandomString(8)
 }
 
-// generateRandomString generates a random string of given length
 func generateRandomString(length int) string {
 	const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 	b := make([]byte, length)
