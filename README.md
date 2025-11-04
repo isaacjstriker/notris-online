@@ -8,6 +8,10 @@
 
 A multiplayer Tetris game with multiplayer, leaderboards, and all plays in the browser. Built with JS and Go utilizing WebSockets and concurrency.
 
+## Ok... but why? Tetris is everywhere!
+
+Fair point, but I wanted to play it anytime, anywhere, from the browser. Also, the official Tetris browser game is RIDDLED with ads, and doesn't have multiplayer. And I wanted to test the experience I've gained through my CS course.
+
 ## Quick Start
 
 All you need is an internet connection! Play online now at: https://notris-online.onrender.com/
@@ -17,18 +21,12 @@ All you need is an internet connection! Play online now at: https://notris-onlin
 - **Room System**: Create private or public rooms with customizable starting levels
 - **User Management**: Login to store your high scores across all your devices
 
-## Ok... but why? Tetris is everywhere!
-
-Fair point, but I wanted to play it anytime, anywhere, from the browser. Also, the official Tetris browser game is RIDDLED with ads, and doesn't have multiplayer. And I wanted to test the experience I've gained through my CS course.
-
-## Cloning
-
 ### Prerequisites
 
 - [Go](https://go.dev/doc/install) 1.19 or later
 - [PostgreSQL](https://www.postgresql.org/download/) database (local or cloud)
 
-### Installation
+### Installation (as easy as...)
 
 1. **Clone the repository**
    ```bash
@@ -36,43 +34,19 @@ Fair point, but I wanted to play it anytime, anywhere, from the browser. Also, t
    cd notris-online
    ```
 
-2. **Set up environment variables**
-   ```bash
-   touch .env
-   # Edit .env with your database connection details
-   ```
-   
-   Required environment variables:
-   ```env
-   DATABASE_URL="postgres://username:password@localhost/notris-online?sslmode=disable"
-   JWT_SECRET="your-secret-key-here"
-   PORT=8888
-   ```
-
-3. **Install dependencies**
+2. **Install dependencies**
    ```bash
    go mod tidy
    ```
 
-4. **Start the server**
+3. **Start the server**
    ```bash
    go run .
    ```
-
-5. **Open your browser**
    Navigate to `http://localhost:8888` to start playing!
-
-### Game Controls
-- **Arrow Keys**: Move and rotate pieces
-- **Spacebar**: Hard drop piece
-- **C**: Hold piece
-- **Escape**: Pause game / Open menu
 
 ## Contributing
 
 You are more than welcome to contribute if you have a feature or bug fix in mind. Please give a clear description of your work when you open a pull request.
-
-### About the developer
-I'm a full stack web developer that will create projects as case studies, to determine areas for technical skill improvement. I love all programming languages, I do not discriminate (except for Assembly LOL).
 
 ---
