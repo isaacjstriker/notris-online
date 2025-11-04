@@ -6,18 +6,20 @@
 
 ![](https://github.com/isaacjstriker/notris-online/blob/main/notris-test.gif)
 
-A labor of love. Notris is a real-time multiplayer Tetris game built with Go and WebSockets. Key skills demonstrated include user authentication, room-based matchmaking, and live gameplay synchronization.
+A multiplayer Tetris game with multiplayer, leaderboards, and all plays in the browser. Built with JS and Go utilizing WebSockets and concurrency.
 
-View it now at https://notris-online.onrender.com/
+## Quick Start
+
+All you need is an internet connection! Play online now at: https://notris-online.onrender.com/
 
 **Key Features:**
 - **Real-time Multiplayer**: Play Tetris against opponents with live game state synchronization
 - **Room System**: Create private or public rooms with customizable starting levels
-- **User Management**: Secure registration and authentication with JWT tokens
+- **User Management**: Login to store your high scores across all your devices
 
-## Capstone Project
+## Ok... but why? Tetris is everywhere!
 
-I created this as my capstone project for Boot.dev, in which computer science and programming fundamentals are taught through the backend slant. I also really wanted to play Tetris online with my friends.
+Fair point, but I wanted to play it anytime, anywhere, from the browser. Also, the official Tetris browser game is RIDDLED with ads, and doesn't have multiplayer. And I wanted to test the experience I've gained through my CS course.
 
 ## Cloning
 
