@@ -6,7 +6,7 @@
 
 ![](https://github.com/isaacjstriker/notris-online/blob/main/notris-test.gif)
 
-A multiplayer Tetris game with multiplayer, leaderboards, and all plays in the browser. Built with JS and Go utilizing WebSockets and concurrency.
+A Tetris game with multiplayer, leaderboards, and all plays in the browser. Built with JS and Go utilizing WebSockets and concurrency.
 
 ## Ok... but why? Tetris is everywhere!
 
