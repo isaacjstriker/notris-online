@@ -119,16 +119,6 @@ Notris Online helped me practice:
 
 ---
 
-## Future improvements (ideas)
-
-- Add **matchmaking** and proper rooms/lobbies
-- Implement score tracking and a **high score leaderboard**
-- Add more polished visuals and animations
-- Improve server‑side validation and reconnection logic
-- Add bots or AI opponents for single‑player practice
-
----
-
 ## License
 
 This project is currently for educational and portfolio use. If you’re interested in using or extending it, feel free to reach out or open an issue.
